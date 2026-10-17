@@ -1,0 +1,356 @@
+  <!-- ===================================================================== -->
+  <!-- VISTA 1: BANDEJA UNIFICADA + DOCK DE SERVICIOS Y SPLIT VIEW FERDIUM   -->
+  <!-- ===================================================================== -->
+  <div id="viewInbox" class="hidden flex-1 flex overflow-hidden relative">
+
+    <!-- BACKDROP PARA GAVETAS MÓVILES (Dock y Simulador) -->
+    <div id="mobileDrawerBackdrop" onclick="closeAllMobileDrawers()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-30 hidden transition-opacity"></div>
+
+    <!-- DOCK VERTICAL DE SERVICIOS Y WORKSPACES ESTILO FERDIUM -->
+    <nav id="ferdiumServiceDock" class="hidden md:flex w-14 bg-slate-950 border-r border-slate-800 flex-col items-center py-2.5 gap-2 shrink-0 select-none z-10 transition-all">
+      <!-- Renderizado dinámicamente por public/js/ferdium.js -->
+    </nav>
+    
+    <!-- COLUMNA IZQUIERDA: LISTA DE CONVERSACIONES -->
+    <aside id="leftSidebar" class="w-full md:w-72 lg:w-80 border-r border-slate-800 bg-slate-900/90 flex flex-col shrink-0 transition-all">
+      <div class="p-2.5 border-b border-slate-800 space-y-2">
+        <!-- Filtro Rápido por Workspace (Empresa) o Todos -->
+        <div class="flex items-center gap-1 text-[10px]">
+          <button onclick="filterChannel('all')" id="flt_all" class="flex-1 px-2 py-1 rounded-lg bg-blue-600 text-white font-bold text-center transition">
+            Todos (8)
+          </button>
+          <button onclick="filterChannel('company_agro')" id="flt_company_agro" class="flex-1 px-2 py-1 rounded-lg bg-slate-800 text-emerald-300 hover:bg-slate-700 font-bold text-center border border-emerald-800/50 transition">
+            🌿 Agropower
+          </button>
+          <button onclick="filterChannel('company_tracto')" id="flt_company_tracto" class="flex-1 px-2 py-1 rounded-lg bg-slate-800 text-amber-300 hover:bg-slate-700 font-bold text-center border border-amber-800/50 transition">
+            🚜 Tractopower
+          </button>
+        </div>
+
+
+        <input id="searchInput" oninput="renderChatList()" type="text" placeholder="Buscar cliente, empresa o mensaje..." class="w-full bg-slate-950 border border-slate-800 rounded-md px-2.5 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-blue-500">
+      </div>
+
+      <div id="chatListContainer" class="flex-1 overflow-y-auto divide-y divide-slate-800/60">
+        <!-- Renderizado dinámicamente -->
+      </div>
+    </aside>
+
+    <!-- COLUMNA CENTRAL: CHAT EN VIVO Y BOTONERA PROGRAMADA -->
+    <section id="activeChatSection" class="flex-1 flex flex-col bg-slate-950 min-w-0">
+      
+      <!-- Cabecera del chat activo -->
+      <div class="h-12 border-b border-slate-800 bg-slate-900/80 px-2 sm:px-4 flex items-center justify-between shrink-0">
+        <div class="flex items-center space-x-1.5 sm:space-x-2.5 min-w-0">
+          <!-- Botón Volver a la Lista de Chats (Móvil) -->
+          <button id="btnBackToChatList" onclick="backToChatList()" class="hidden md:hidden mr-1 p-1.5 text-slate-300 hover:text-white rounded-lg bg-slate-800/80 active:bg-slate-700 transition shrink-0" title="Volver a la lista de chats">
+            <i class="fa-solid fa-arrow-left text-sm"></i>
+          </button>
+
+          <div id="activeAvatar" class="w-8 h-8 rounded-full bg-blue-600/30 border border-blue-500/40 flex items-center justify-center font-bold text-xs text-blue-300 shrink-0">
+            JE
+          </div>
+          <div class="truncate">
+            <div class="flex items-center space-x-1.5 flex-wrap">
+              <span id="activeName" class="font-bold text-xs text-white truncate">Jesús D</span>
+              <span id="activePhoneBadge" class="text-[10px] font-mono px-2 py-0.2 rounded font-bold bg-slate-800 text-emerald-300 border border-emerald-700/60">
+                📱 +58 412-9703262
+              </span>
+              <span id="activeCompanyBadge" class="text-[9px] px-2 py-0.2 rounded font-extrabold bg-emerald-950 text-emerald-300 border border-emerald-700">
+                🌿 Agropower
+              </span>
+              <span id="activeChannelBadge" class="text-[9px] px-2 py-0.2 rounded font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
+                WhatsApp (Prueba)
+              </span>
+              <span id="activeSaleClosedBadge" class="hidden text-[9px] px-2 py-0.2 rounded font-extrabold bg-emerald-500 text-slate-950">
+                🏆 VENTA CERRADA
+              </span>
+              <button id="activeWaitingAdvisorBadge" onclick="dismissWaitingAdvisor()" class="hidden text-[9px] px-2 py-0.5 rounded font-extrabold bg-amber-500 hover:bg-amber-400 text-slate-950 animate-pulse items-center gap-1 cursor-pointer transition shadow" title="Haz clic para marcar como atendido y apagar la alerta">
+                🔔 PIDE ASESOR (Marcar Atendido)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <!-- BOTÓN PARA CERRAR VENTA (Lleva la estadística del asesor y canal) -->
+          <button id="btnCloseSale" onclick="toggleCloseSale()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-2 sm:px-3 py-1 rounded-lg text-xs font-extrabold shadow flex items-center gap-1.5 transition shrink-0">
+            <i class="fa-solid fa-trophy"></i>
+            <span id="btnCloseSaleText" class="hidden sm:inline">Cerrar Venta</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ESPACIO DE TRABAJO TIKTOK (MÉTODO A: VINCULACIÓN QR Y BANDEJA AISLADA) -->
+      <div id="tiktokWorkspacePane" class="hidden flex-col p-4 sm:p-6 bg-slate-950 overflow-y-auto space-y-4">
+        <!-- Tarjeta de Estado del Canal -->
+        <div class="bg-slate-900/90 border border-cyan-800/50 rounded-2xl p-5 shadow-xl space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-slate-950 border border-cyan-500/40 flex items-center justify-center text-cyan-400 text-2xl shrink-0 shadow-inner">
+                <i class="fa-brands fa-tiktok"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 id="tkPaneTitle" class="font-bold text-base text-white">TikTok Agropower</h3>
+                  <span id="tkPaneCompanyBadge" class="text-[10px] px-2 py-0.5 rounded font-extrabold bg-emerald-950 text-emerald-300 border border-emerald-700">🌿 Agropower</span>
+                </div>
+                <div class="flex items-center gap-2 mt-0.5">
+                  <span id="tkPaneHandle" class="text-xs font-mono text-cyan-300 font-bold">@agropower_venezuela</span>
+                  <span id="tkPaneStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-950 text-emerald-300 border border-emerald-700">🟢 Conectado por QR (Método A)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Botones de Acción Rápida -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                id="btnTkOpenWindow"
+                onclick="openActiveTikTokChannelWindow()"
+                class="px-4 py-2.5 rounded-xl text-xs font-extrabold bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-600/30 flex items-center gap-2 transition"
+              >
+                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                <span id="btnTkOpenWindowText">Abrir Bandeja TikTok</span>
+              </button>
+              <button
+                type="button"
+                id="btnTkReconnectQr"
+                onclick="openChannelAuthModal(currentFilter)"
+                class="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition"
+              >
+                <i class="fa-solid fa-qrcode text-cyan-400"></i>
+                <span>Gestionar / QR</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Estado de la Ventana Aislada -->
+          <div id="tkWindowStateAlert" class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs">
+            <div class="flex items-center gap-2">
+              <span id="tkWindowDot" class="w-2.5 h-2.5 rounded-full bg-slate-500 shrink-0"></span>
+              <span id="tkWindowStateText" class="text-slate-300">Ventana aislada: <strong>No abierta</strong></span>
+            </div>
+            <span class="text-[10px] text-slate-500 font-mono">Partición: <span id="tkPanePartition" class="text-slate-400">persist:tk_agro</span></span>
+          </div>
+        </div>
+
+        <!-- Guía de Uso del Método A -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 space-y-1.5">
+            <div class="flex items-center gap-2 text-cyan-400 text-xs font-bold">
+              <i class="fa-solid fa-headphones"></i>
+              <span>Notas de Voz Nativas</span>
+            </div>
+            <p class="text-[11px] text-slate-400 leading-relaxed">
+              Escucha las notas de voz de los clientes con total claridad directamente en la ventana web de TikTok, sin restricciones de formato.
+            </p>
+          </div>
+
+          <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 space-y-1.5">
+            <div class="flex items-center gap-2 text-emerald-400 text-xs font-bold">
+              <i class="fa-solid fa-bolt"></i>
+              <span>Sin Captchas ni Bloqueos</span>
+            </div>
+            <p class="text-[11px] text-slate-400 leading-relaxed">
+              La vinculación por QR oficial no requiere ingresar contraseñas, protegiendo las cuentas de Agropower y Tractopower contra baneos o captchas infinitos.
+            </p>
+          </div>
+
+          <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 space-y-1.5">
+            <div class="flex items-center gap-2 text-amber-400 text-xs font-bold">
+              <i class="fa-solid fa-lock"></i>
+              <span>Sesión Persistente Aislada</span>
+            </div>
+            <p class="text-[11px] text-slate-400 leading-relaxed">
+              Las cookies y la sesión se guardan en el perfil del navegador. Cada empresa opera en su propia ventana aislada sin cruce de datos.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Historial de mensajes -->
+      <div id="messagesViewport" class="flex-1 p-3 sm:p-4 overflow-y-auto space-y-3">
+        <!-- Renderizado dinámicamente -->
+      </div>
+        <!-- Renderizado dinámicamente -->
+      </div>
+
+      <!-- BOTONERA INFERIOR: LAS 3 CATEGORÍAS DE MENSAJES PROGRAMADOS -->
+      <div class="border-t border-slate-800 bg-slate-900/95 p-2 sm:p-3 space-y-2 shrink-0">
+        <div class="flex items-center justify-between">
+          <button id="btnToggleQuickReplies" type="button" onclick="toggleQuickReplies()" class="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 hover:text-emerald-300 cursor-pointer transition">
+            <i class="fa-solid fa-bolt"></i>
+            <span>Mensajes Rápidos</span>
+            <i id="quickRepliesChevron" class="fa-solid fa-chevron-up text-[9px] transition-transform"></i>
+          </button>
+          <div class="flex items-center space-x-1.5">
+            <span class="text-[10px] text-slate-400 hidden sm:inline">Responder vía:</span>
+            <select id="replyChannelSelect" class="bg-slate-950 text-slate-200 border border-slate-700 rounded px-1.5 sm:px-2 py-0.5 text-[10px]">
+              <optgroup label="🌿 AGROPOWER">
+                <option value="wa_agro">🟢 Agropower • WhatsApp (Prueba)</option>
+                <option value="ig_agro">📸 Agropower • IG (@agropower_venezuela)</option>
+                <option value="tk_agro">🎵 Agropower • TK (@agropower_venezuela)</option>
+                <option value="fb_agro">💬 Agropower • FB Messenger (Pendiente)</option>
+              </optgroup>
+              <optgroup label="🚜 TRACTOPOWER">
+                <option value="wa_tracto">🟢 Tractopower • WhatsApp (Prueba)</option>
+                <option value="ig_tracto">📸 Tractopower • IG (@Tractopower_venezuela)</option>
+                <option value="tk_tracto">🎵 Tractopower • TK (@tractopowervenezuela)</option>
+                <option value="fb_tracto">💬 Tractopower • FB Messenger (Pendiente)</option>
+              </optgroup>
+            </select>
+          </div>
+        </div>
+
+        <div id="quickRepliesBody" class="space-y-2">
+          <!-- 3 Categorías -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+            
+            <!-- Cat 1 -->
+            <div class="bg-slate-950/90 border border-slate-800 rounded-lg p-2 space-y-1.5">
+              <div class="text-[10px] font-bold text-blue-400 flex items-center gap-1 border-b border-slate-800/80 pb-1">
+                <i class="fa-solid fa-book-open"></i> 1. Catálogo y Desc. Técnica
+              </div>
+              <div class="flex flex-wrap gap-1">
+                <button onclick="sendPreprogrammed('cat_modelos')" class="flex-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 px-2 py-1 rounded text-[10px] font-semibold flex items-center justify-center gap-1 transition">
+                  <i class="fa-solid fa-file-pdf text-rose-400"></i> Catálogo (PDF)
+                </button>
+                <button onclick="sendPreprogrammed('repuestos')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] transition">
+                  🔧 Repuestos
+                </button>
+                <button onclick="sendPreprogrammed('garantia')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] transition">
+                  🛡️ Garantía
+                </button>
+              </div>
+              <div id="customBtnsCat1" class="flex flex-wrap gap-1 empty:hidden"></div>
+            </div>
+
+            <!-- Cat 2 -->
+            <div class="bg-slate-950/90 border border-slate-800 rounded-lg p-2 space-y-1.5">
+              <div class="text-[10px] font-bold text-amber-400 flex items-center gap-1 border-b border-slate-800/80 pb-1">
+                <i class="fa-solid fa-coins"></i> 2. Costos y Financiamiento
+              </div>
+              <div class="flex flex-wrap gap-1">
+                <button onclick="sendPreprogrammed('precios')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] transition">
+                  💰 Precios
+                </button>
+                <button onclick="sendPreprogrammed('financiamiento')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] transition">
+                  💳 Financiamiento
+                </button>
+                <button onclick="sendPreprogrammed('compras_prog')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] transition">
+                  📦 Compras Prog.
+                </button>
+              </div>
+              <div id="customBtnsCat2" class="flex flex-wrap gap-1 empty:hidden"></div>
+            </div>
+
+            <!-- Cat 3 -->
+            <div class="bg-slate-950/90 border border-slate-800 rounded-lg p-2 space-y-1.5 flex flex-col justify-between">
+              <div class="text-[10px] font-bold text-purple-400 flex items-center gap-1 border-b border-slate-800/80 pb-1">
+                <i class="fa-solid fa-user-tie"></i> 3. Hablar con un Asesor
+              </div>
+              <button onclick="sendPreprogrammed('asesor')" class="w-full bg-purple-950/80 hover:bg-purple-900 text-purple-200 border border-purple-700/60 px-2 py-1.5 rounded text-[10px] font-semibold flex items-center justify-center gap-1.5 transition">
+                <i class="fa-solid fa-headset"></i> Saludo de Asesor
+              </button>
+              <div id="customBtnsCat3" class="flex flex-wrap gap-1 empty:hidden"></div>
+            </div>
+
+          </div>
+
+          <!-- Categorías adicionales creadas desde el Modal de Agregar Categoría -->
+          <div id="customCategoriesInboxGrid" class="grid grid-cols-1 md:grid-cols-3 gap-2 empty:hidden"></div>
+        </div>
+
+        <!-- Input libre -->
+        <div class="flex items-center space-x-2 pt-1">
+          <input id="operatorInput" onkeypress="if(event.key==='Enter') operatorSendMessage()" type="text" placeholder="Escribe un mensaje libre al cliente..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+          <button onclick="operatorSendMessage()" class="px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition shrink-0">
+            <span class="hidden sm:inline">Enviar</span>
+            <i class="fa-solid fa-paper-plane text-[10px]"></i>
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- COLUMNA SECUNDARIA: VISTA DIVIDIDA MULTI-CHAT ESTILO FERDIUM (SPLIT VIEW) -->
+
+
+
+    <!-- SIMULADOR DEL CELULAR (COMPACTO Y CLICABLE) -->
+    <div id="simulatorPanel" class="w-72 sm:w-80 border-l border-slate-800 bg-slate-900 flex flex-col shrink-0 hidden lg:flex transition-all">
+      <div class="bg-emerald-700 px-3 py-2.5 flex items-center justify-between text-white">
+        <div class="flex items-center space-x-2">
+          <i class="fa-brands fa-whatsapp text-lg"></i>
+          <div>
+            <div class="font-bold text-xs leading-tight">Simulador Omnicanal (2 Empresas)</div>
+            <div class="text-[10px] text-emerald-200">Agropower & Tractopower (8 Canales)</div>
+          </div>
+        </div>
+        <button type="button" onclick="toggleSimulator()" class="lg:hidden text-white/80 hover:text-white p-1 rounded transition" title="Cerrar Simulador">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <div class="p-3 flex-1 overflow-y-auto space-y-3 bg-slate-950/90 text-xs">
+        <div class="bg-slate-900 p-2 rounded border border-slate-800">
+          <label class="text-[10px] text-slate-400 block mb-1">Empresa y Canal de prueba:</label>
+          <select id="simChannel" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-emerald-400 font-semibold">
+            <optgroup label="🌿 AGROPOWER">
+              <option value="wa_agro">🟢 WA Agropower (En prueba)</option>
+              <option value="ig_agro">📸 IG: @agropower_venezuela</option>
+              <option value="tk_agro">🎵 TK: @agropower_venezuela</option>
+              <option value="fb_agro">💬 FB Messenger Agropower (Pendiente)</option>
+            </optgroup>
+            <optgroup label="🚜 TRACTOPOWER">
+              <option value="wa_tracto">🟢 WA Tractopower (En prueba)</option>
+              <option value="ig_tracto">📸 IG: @Tractopower_venezuela</option>
+              <option value="tk_tracto">🎵 TK: @tractopowervenezuela</option>
+              <option value="fb_tracto">💬 FB Messenger Tractopower (Pendiente)</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="space-y-2">
+          <span class="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Opciones que toca el cliente:</span>
+          
+          <button onclick="simulateCustomerClick('Catálogo de modelos')" class="w-full text-left bg-slate-900 hover:bg-emerald-950/80 border border-emerald-600/40 text-emerald-300 p-2 rounded-lg transition flex items-center justify-between">
+            <span>📄 Catálogo de modelos (Envía PDF)</span>
+            <i class="fa-solid fa-chevron-right text-[10px]"></i>
+          </button>
+
+          <button onclick="simulateCustomerClick('Repuestos')" class="w-full text-left bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 p-2 rounded-lg transition flex items-center justify-between">
+            <span>🔧 Repuestos</span>
+            <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
+          </button>
+
+          <button onclick="simulateCustomerClick('Garantía')" class="w-full text-left bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 p-2 rounded-lg transition flex items-center justify-between">
+            <span>🛡️ Garantía</span>
+            <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
+          </button>
+
+          <button onclick="simulateCustomerClick('Precio de los modelos')" class="w-full text-left bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 p-2 rounded-lg transition flex items-center justify-between">
+            <span>💰 Precio de los modelos</span>
+            <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
+          </button>
+
+          <button onclick="simulateCustomerClick('Sistema de financiamiento')" class="w-full text-left bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 p-2 rounded-lg transition flex items-center justify-between">
+            <span>💳 Sistema de financiamiento</span>
+            <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
+          </button>
+
+          <button onclick="simulateCustomerClick('Compras programadas')" class="w-full text-left bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 p-2 rounded-lg transition flex items-center justify-between">
+            <span>📦 Compras programadas</span>
+            <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
+          </button>
+
+          <button onclick="simulateCustomerClick('Hablar con un asesor')" class="w-full text-left bg-purple-950/60 hover:bg-purple-900/80 border border-purple-600/50 text-purple-200 p-2 rounded-lg font-semibold transition flex items-center justify-between">
+            <span>🧑‍💼 Hablar con un asesor</span>
+            <i class="fa-solid fa-bell text-amber-400 animate-pulse"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>

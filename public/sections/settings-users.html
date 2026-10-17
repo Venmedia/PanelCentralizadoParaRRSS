@@ -1,0 +1,89 @@
+      <!-- SECCIÓN GESTIÓN DE USUARIOS (CREAR, VER Y MODIFICAR USUARIOS) -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-2">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 text-lg">
+              <i class="fa-solid fa-users-gear"></i>
+            </div>
+            <div>
+              <h3 class="font-bold text-sm text-white">Gestión de Usuarios del Panel (Administrador y Usuarios Administrables)</h3>
+              <div class="text-[11px] text-slate-400">El Usuario Principal puede crear todos los usuarios que desee, ver sus claves y modificar toda su información.</div>
+            </div>
+          </div>
+          <span id="usersCountBadge" class="px-3 py-1 rounded-full text-xs font-bold bg-indigo-950 text-indigo-300 border border-indigo-800">
+            3 Usuarios Registrados
+          </span>
+        </div>
+
+        <!-- Formulario para Crear o Modificar Usuario -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <span id="userFormTitle" class="text-xs font-bold text-indigo-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-user-plus"></i> Crear Nuevo Usuario
+            </span>
+            <button id="btnCancelEditUser" onclick="resetUserForm()" class="hidden text-[11px] text-slate-400 hover:text-white underline">
+              Cancelar edición
+            </button>
+          </div>
+
+          <input type="hidden" id="editUserId" value="">
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+            <div>
+              <label class="text-[10px] text-slate-400 font-semibold block mb-1">Nombre:</label>
+              <input id="u_firstName" type="text" placeholder="Ej. Carlos" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="text-[10px] text-slate-400 font-semibold block mb-1">Apellido:</label>
+              <input id="u_lastName" type="text" placeholder="Ej. Mendoza" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="text-[10px] text-slate-400 font-semibold block mb-1">Correo Electrónico:</label>
+              <input id="u_email" type="email" placeholder="carlos@consorcio.com" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="text-[10px] text-slate-400 font-semibold block mb-1">Nombre de Usuario (Login):</label>
+              <input id="u_username" type="text" placeholder="Ej. cmendoza" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-mono focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="text-[10px] text-slate-400 font-semibold block mb-1">Clave / Contraseña:</label>
+              <input id="u_password" type="text" placeholder="Ingresa la clave" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-amber-300 font-mono focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="text-[10px] text-slate-400 font-semibold block mb-1">Rol del Usuario:</label>
+              <select id="u_role" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-semibold focus:outline-none focus:border-indigo-500">
+                <option value="operator">👤 Usuario Administrable (Asesor)</option>
+                <option value="admin">👑 Administrador Principal</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-1">
+            <div id="userFormFeedback" class="text-[11px] font-semibold text-emerald-400"></div>
+            <button onclick="saveUserForm()" id="btnSubmitUser" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-lg shadow flex items-center gap-1.5 transition">
+              <i class="fa-solid fa-floppy-disk"></i>
+              <span id="btnSubmitUserText">Crear Usuario</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabla de Usuarios Registrados -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="border-b border-slate-800 text-[10px] uppercase tracking-wider text-slate-400 bg-slate-950/60">
+                <th class="p-2.5">Nombre y Apellido</th>
+                <th class="p-2.5">Correo</th>
+                <th class="p-2.5">Usuario</th>
+                <th class="p-2.5">Clave</th>
+                <th class="p-2.5">Rol</th>
+                <th class="p-2.5">Última Conexión al Panel</th>
+                <th class="p-2.5 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="settingsUsersTableBody" class="divide-y divide-slate-800/70">
+              <!-- Renderizado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>

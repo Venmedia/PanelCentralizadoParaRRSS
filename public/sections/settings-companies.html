@@ -1,0 +1,246 @@
+      <!-- SECCIÓN EMPRESAS Y LOGIN DE REDES SOCIALES (MOTOR FERDIUM RECIPES + BÓVEDA AES-256-GCM) -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-800 pb-3 gap-3">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-lg shrink-0">
+              <i class="fa-solid fa-share-nodes"></i>
+            </div>
+            <div>
+              <h3 class="font-bold text-sm text-white">
+                Empresas y Canales Omnicanal
+              </h3>
+              <p class="text-[11px] text-slate-400 mt-0.5">
+                Inicia sesión en cada red social para vincular la cuenta al panel. Cada canal opera en su partición aislada y guarda su token cifrado en la bóveda.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <button onclick="saveTemplates('btnSaveCompanies')" id="btnSaveCompanies" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-3.5 py-1.5 rounded-lg shadow transition flex items-center gap-1.5">
+              <i class="fa-solid fa-floppy-disk"></i>
+              <span>Guardar Ajustes</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Inputs ocultos sincronizados para compatibilidad con saveTemplates() -->
+        <input id="c_agro_ig" type="hidden" value="agropower_venezuela">
+        <input id="c_agro_tk" type="hidden" value="agropower_venezuela">
+        <input id="c_agro_fb" type="hidden" value="Pendiente por configurar">
+        <input id="c_agro_wa" type="hidden" value="WhatsApp Prueba">
+        <input id="c_tracto_ig" type="hidden" value="Tractopower_venezuela">
+        <input id="c_tracto_tk" type="hidden" value="tractopowervenezuela">
+        <input id="c_tracto_fb" type="hidden" value="Pendiente por configurar">
+        <input id="c_tracto_wa" type="hidden" value="WhatsApp Prueba">
+
+        <!-- TARJETAS DE LAS 2 EMPRESAS (WORKSPACES FERDIUM) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+          <!-- EMPRESA 1: AGROPOWER -->
+          <div class="bg-slate-950 border border-emerald-800/60 rounded-xl p-4 space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <span class="font-extrabold text-sm text-emerald-400">
+                🌿 AGROPOWER
+              </span>
+              <span id="agroConnectedCountBadge" class="text-[10px] px-2.5 py-0.5 rounded-full bg-slate-900 text-slate-300 border border-slate-700 font-bold">
+                0/4 Conectados
+              </span>
+            </div>
+
+            <div id="agroChannelsVaultContainer" class="space-y-2.5">
+              <!-- Renderizado dinámicamente por public/js/channels.js -->
+            </div>
+          </div>
+
+          <!-- EMPRESA 2: TRACTOPOWER -->
+          <div class="bg-slate-950 border border-amber-800/60 rounded-xl p-4 space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <span class="font-extrabold text-sm text-amber-400">
+                🚜 TRACTOPOWER
+              </span>
+              <span id="tractoConnectedCountBadge" class="text-[10px] px-2.5 py-0.5 rounded-full bg-slate-900 text-slate-300 border border-slate-700 font-bold">
+                0/4 Conectados
+              </span>
+            </div>
+
+            <div id="tractoChannelsVaultContainer" class="space-y-2.5">
+              <!-- Renderizado dinámicamente por public/js/channels.js -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Asignación del WhatsApp de prueba actual -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div>
+            <span class="font-bold text-white"><i class="fa-brands fa-whatsapp text-emerald-400 mr-1"></i> Enrutamiento del WhatsApp Conectado:</span>
+            <span class="text-[11px] text-slate-400 block sm:inline sm:ml-1">Define a qué empresa ingresan por defecto los nuevos contactos del WhatsApp activo.</span>
+          </div>
+          <select id="testWhatsappChannelSelect" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-bold text-emerald-400">
+            <option value="wa_agro">🌿 Nuevos chats entrantes a: Agropower (WhatsApp)</option>
+            <option value="wa_tracto">🚜 Nuevos chats entrantes a: Tractopower (WhatsApp)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- MODAL LIMPIO DE INICIO DE SESIÓN DE RED SOCIAL / WHATSAPP -->
+      <div id="channelAuthModal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+          <div class="px-5 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div id="modalChannelIconBox" class="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-lg">
+                <i id="modalChannelIcon" class="fa-brands fa-instagram text-pink-400"></i>
+              </div>
+              <div>
+                <h4 id="modalChannelTitle" class="font-bold text-sm text-white">Iniciar Sesión</h4>
+                <p id="modalChannelSubtitle" class="text-[11px] text-slate-400">Ingresa las credenciales de la cuenta</p>
+              </div>
+            </div>
+            <button type="button" onclick="closeChannelAuthModal()" class="text-slate-400 hover:text-white text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-800">
+              ✕
+            </button>
+          </div>
+
+          <form onsubmit="submitChannelAuthModal(event)" class="p-5 space-y-4 text-xs" autocomplete="off">
+            <input type="hidden" id="modalChannelKey" value="">
+            <input type="hidden" id="modalAuthMethod" value="">
+
+            <!-- CAMPOS DE LOGIN DE RED SOCIAL (VACÍOS POR DEFECTO) -->
+            <div id="modalOAuthFields" class="space-y-3.5">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1.5">
+                  Usuario, correo o teléfono:
+                </label>
+                <input
+                  id="modalLoginUsername"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="Ingresa el usuario o correo de la cuenta"
+                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                >
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1.5">
+                  Contraseña:
+                </label>
+                <input
+                  id="modalLoginPassword"
+                  type="password"
+                  autocomplete="new-password"
+                  placeholder="Ingresa la contraseña"
+                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                >
+              </div>
+
+              <!-- Opción práctica inspirada en Ferdium para abrir también la bandeja web aislada -->
+              <label class="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer pt-1 select-none">
+                <input id="modalLaunchFerdiumPopup" type="checkbox" class="rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-0">
+                <span>Abrir también ventana de bandeja directa de la red social</span>
+              </label>
+            </div>
+
+            <!-- CAMPOS EXCLUSIVOS DE TIKTOK (MÉTODO A: CÓDIGO QR / BANDEJA AISLADA) -->
+            <div id="modalTikTokFields" class="hidden space-y-3.5">
+              <div class="bg-slate-950 border border-cyan-800/50 rounded-xl p-3.5 space-y-2.5">
+                <div class="flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-lg bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 text-xs">
+                    <i class="fa-solid fa-qrcode"></i>
+                  </span>
+                  <span class="font-bold text-xs text-white">Vinculación por Código QR Oficial (Método A)</span>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                  Este método vincula tu cuenta directamente escaneando el código QR oficial de TikTok. Es el más limpio, no requiere contraseñas y evita el captcha infinito.
+                </p>
+
+                <!-- Pasos de vinculación -->
+                <div class="space-y-1.5 text-[11px] text-slate-300 bg-slate-900/90 rounded-lg p-2.5 border border-slate-800">
+                  <div class="flex items-start gap-2">
+                    <span class="font-extrabold text-cyan-400 shrink-0">1.</span>
+                    <span>Abre la app de TikTok en el teléfono donde tienes la cuenta (<strong id="modalTkAccountName" class="text-white">@agropower_venezuela</strong>).</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <span class="font-extrabold text-cyan-400 shrink-0">2.</span>
+                    <span>Ve a tu <strong>Perfil</strong> > toca las tres líneas (<strong>☰</strong> arriba a la derecha) > <strong>Ajustes y privacidad</strong> > o toca el icono de <strong>Código QR / Escanear</strong>.</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <span class="font-extrabold text-cyan-400 shrink-0">3.</span>
+                    <span>Haz clic en el botón de abajo para abrir la ventana con el código QR oficial de TikTok.</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <span class="font-extrabold text-cyan-400 shrink-0">4.</span>
+                    <span>Escanea el código QR en la pantalla y presiona <strong>Confirmar</strong> en el teléfono.</span>
+                  </div>
+                </div>
+
+                <!-- Contenedor del Código QR generado por Playwright en el servidor -->
+                <div id="modalTikTokQrBox" class="flex flex-col items-center justify-center p-3 bg-white rounded-xl shadow-inner min-h-[220px]">
+                  <div id="modalTikTokQrLoading" class="flex flex-col items-center justify-center gap-2 text-slate-700 py-6">
+                    <i class="fa-solid fa-spinner fa-spin text-2xl text-cyan-600"></i>
+                    <span class="text-xs font-bold">Generando código QR oficial en el servidor...</span>
+                    <span class="text-[10px] text-slate-500">Iniciando instancia headless de TikTok</span>
+                  </div>
+                  <img id="modalTikTokQrImage" class="hidden max-w-[220px] max-h-[220px] object-contain rounded-lg border border-slate-200 shadow-sm" alt="Código QR Oficial de TikTok">
+                  <span id="modalTikTokQrStatus" class="hidden text-[11px] font-extrabold text-slate-800 mt-2 text-center">
+                    📸 Escanea con la app de TikTok y confirma en tu teléfono
+                  </span>
+                </div>
+
+                <div class="pt-1 flex flex-col gap-2">
+                  <button type="button" onclick="requestTikTokQrCode()" class="w-full py-2 px-3 rounded-xl font-bold text-xs bg-cyan-600 hover:bg-cyan-500 text-white shadow flex items-center justify-center gap-1.5 transition">
+                    <i class="fa-solid fa-rotate text-xs"></i>
+                    <span>Actualizar Código QR</span>
+                  </button>
+                  <button type="button" onclick="openTikTokLoginPopup()" class="w-full py-1.5 px-3 rounded-xl font-semibold text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center justify-center gap-1.5 transition">
+                    <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                    <span>Abrir también en ventana emergente</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Alternativa opcional -->
+              <div class="text-center pt-0.5">
+                <button type="button" onclick="toggleClassicOAuthInModal()" class="text-[10px] text-slate-500 hover:text-slate-400 underline">
+                  ¿Prefieres ingresar usuario y contraseña clásica? (No recomendado por captchas)
+                </button>
+              </div>
+            </div>
+
+            <!-- CAMPOS DE WHATSAPP (BAILEYS / EVOLUTION API) -->
+            <div id="modalWhatsAppFields" class="hidden space-y-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">Modo de Conexión:</label>
+                <select id="modalWaConnectionMode" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-emerald-300 font-bold">
+                  <option value="baileys_direct">Baileys Directo (QR del Panel)</option>
+                  <option value="evolution_api">Evolution API (Instancia + API Key)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">URL Evolution API:</label>
+                <input id="modalWaEvolutionUrl" type="text" placeholder="http://localhost:8080" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono">
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">Nombre de Instancia:</label>
+                <input id="modalWaInstanceName" type="text" placeholder="Ej: agropower_wa" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono">
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">API Key / Token:</label>
+                <input id="modalWaApiKey" type="password" autocomplete="new-password" placeholder="Ingresa la API Key" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono">
+              </div>
+            </div>
+
+            <div id="modalChannelFeedback" class="hidden text-[11px] font-semibold p-2.5 rounded-xl text-center"></div>
+
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button type="button" onclick="closeChannelAuthModal()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">
+                Cancelar
+              </button>
+              <button type="submit" id="btnSubmitChannelAuth" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow flex items-center gap-1.5">
+                <i class="fa-solid fa-right-to-bracket"></i>
+                <span id="btnSubmitChannelAuthText">Iniciar Sesión</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>

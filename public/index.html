@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniPanel - Consorcio Omnicanal (Agropower & Tractopower)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/css/styles.css">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-screen h-[100dvh] flex flex-col overflow-hidden select-none text-xs">
+
+  <!-- ===================================================================== -->
+  <!-- PUNTOS DE MONTAJE DE SECCIONES MODULARES (public/sections/*.html)     -->
+  <!-- ===================================================================== -->
+
+  <!-- 1. Bloque de Login Seguro (public/sections/login.html) -->
+  <div id="mount-login"></div>
+
+  <!-- 2. Bloque de Barra Superior y Navegación (public/sections/header.html) -->
+  <div id="mount-header"></div>
+
+  <!-- 3. Vista 1: Bandeja Omnicanal y Simulador (public/sections/inbox.html) -->
+  <div id="mount-inbox"></div>
+
+  <!-- 4. Vista 2: Estadísticas e Informe Semanal (public/sections/stats.html) -->
+  <div id="mount-stats"></div>
+
+  <!-- 5. Vista 3: Ajustes y sus 5 Sub-Bloques (public/sections/settings*.html) -->
+  <div id="mount-settings"></div>
+
+  <!-- ===================================================================== -->
+  <!-- MÓDULOS JAVASCRIPT DEL PANEL (public/js/*.js)                         -->
+  <!-- ===================================================================== -->
+  <script src="/js/state.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/loader.js"></script>
+  <script src="/js/responsive.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/inbox.js"></script>
+  <script src="/js/settings.js"></script>
+  <script src="/js/channels.js"></script>
+  <script src="/js/ferdium.js"></script>
+  <script src="/js/users.js"></script>
+  <script src="/js/analytics.js"></script>
+  <script src="/js/main.js"></script>
+</body>
+</html>

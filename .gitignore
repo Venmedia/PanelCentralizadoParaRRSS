@@ -1,0 +1,37 @@
+# Dependencias
+node_modules/
+
+# Entorno y variables secretas
+.env
+.env.*
+channelVault.json
+
+# Sesiones de WhatsApp (Baileys) - Credenciales de números activos
+auth_info_baileys/
+auth_info_baileys_*/
+auth_info_baileys_tracto/
+
+# Sesiones y cookies de TikTok (Playwright)
+data/
+.playwright/
+
+# Tokens de acceso y configuración de Meta / Instagram
+metaTokens*.json
+metaConfig*.json
+
+# Datos locales en caliente y conversaciones privadas
+conversations.json
+metaConversations.json
+analytics.json
+users.json
+backups/
+
+# Medios recibidos de usuarios
+public/media/whatsapp/
+
+# Logs y temporales
+logs/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

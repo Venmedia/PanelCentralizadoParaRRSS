@@ -1,0 +1,89 @@
+  <!-- ===================================================================== -->
+  <!-- PÁGINA DE LOGIN SEGURO (BLOQUEO DE ACCESO HASTA AUTENTICACIÓN)        -->
+  <!-- ===================================================================== -->
+  <div id="loginScreenOverlay" class="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+      <!-- Encabezado Corporativo -->
+      <div class="bg-gradient-to-r from-slate-950 via-blue-950/60 to-slate-950 p-6 border-b border-slate-800 text-center space-y-2">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 mx-auto flex items-center justify-center text-white text-xl shadow-lg border border-blue-400/30">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <h1 class="text-base font-extrabold tracking-tight text-white">OMNIPANEL • ACCESO SEGURO</h1>
+        <div class="flex items-center justify-center gap-2 pt-0.5">
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700/70 font-bold">🌿 Agropower</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-700/70 font-bold">🚜 Tractopower</span>
+        </div>
+        <p class="text-[11px] text-slate-400 pt-1">Inicia sesión con tus credenciales asignadas para ingresar a la consola.</p>
+      </div>
+
+      <!-- Formulario de Login -->
+      <form id="loginForm" onsubmit="submitLoginForm(event)" class="p-6 space-y-4" autocomplete="on" novalidate>
+        <div id="loginErrorBox" class="hidden rounded-xl p-3 text-xs font-semibold border"></div>
+
+        <div>
+          <label for="loginUsername" class="block text-[11px] font-bold text-slate-300 mb-1.5">
+            <i class="fa-solid fa-user text-blue-400 mr-1"></i> Nombre de Usuario
+          </label>
+          <input
+            id="loginUsername"
+            type="text"
+            maxlength="50"
+            required
+            autocomplete="username"
+            placeholder="Ej: admin, mgonzalez, jperez"
+            class="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition"
+          >
+        </div>
+
+        <div>
+          <label for="loginPassword" class="block text-[11px] font-bold text-slate-300 mb-1.5">
+            <i class="fa-solid fa-lock text-amber-400 mr-1"></i> Contraseña
+          </label>
+          <div class="relative">
+            <input
+              id="loginPassword"
+              type="password"
+              maxlength="100"
+              required
+              autocomplete="current-password"
+              placeholder="Ingresa tu clave de acceso"
+              class="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition"
+            >
+            <button
+              type="button"
+              onclick="toggleLoginPasswordVisibility()"
+              class="absolute inset-y-0 right-0 px-3 text-slate-400 hover:text-white transition"
+              title="Mostrar/Ocultar contraseña"
+            >
+              <i id="loginPwdEyeIcon" class="fa-solid fa-eye text-xs"></i>
+            </button>
+          </div>
+        </div>
+
+        <button
+          id="btnLoginSubmit"
+          type="submit"
+          class="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-extrabold py-2.5 rounded-xl shadow-lg flex items-center justify-center gap-2 transition text-xs cursor-pointer"
+        >
+          <i class="fa-solid fa-right-to-bracket"></i>
+          <span id="btnLoginSubmitText">Iniciar Sesión en el Panel</span>
+        </button>
+
+        <!-- Información de Políticas de Rol y Seguridad -->
+        <div class="bg-slate-950/90 border border-slate-800/90 rounded-xl p-3 space-y-2 text-[10px] text-slate-400">
+          <div class="flex items-start gap-2">
+            <i class="fa-solid fa-chart-line text-emerald-400 mt-0.5"></i>
+            <div>
+              <strong class="text-slate-200">Registro de Estadísticas por Ingreso:</strong> Al iniciar sesión como <strong class="text-emerald-300">Asesor</strong> comienza el conteo de tu horario de conexión, clientes atendidos y cierres de venta. El usuario <strong class="text-amber-300">Admin</strong> está exento de estadísticas.
+            </div>
+          </div>
+          <div class="flex items-start gap-2 border-t border-slate-800/80 pt-2">
+            <i class="fa-solid fa-lock text-blue-400 mt-0.5"></i>
+            <div>
+              <strong class="text-slate-200">Protección Activa:</strong> Rate Limiting anti-fuerza bruta (máx. 5 intentos), sanitización contra inyección HTTP/XSS/NoSQL y sesión criptográfica segura.
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>

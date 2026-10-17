@@ -1,0 +1,86 @@
+  <!-- ===================================================================== -->
+  <!-- BARRA SUPERIOR CON NAVEGACIÓN, QUICK SWITCHER FERDIUM (Ctrl+K) Y SESIÓN -->
+  <!-- ===================================================================== -->
+  <header id="mainHeader" class="hidden border-b border-slate-800 bg-slate-900/95 px-2 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-1 sm:gap-2 z-20 shrink-0">
+    <!-- LOGO, TOGGLE SIDEBAR Y ESTADO DE CONECTIVIDAD + DISPOSITIVO -->
+    <div class="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
+      <button onclick="toggleSidebar()" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition" title="Mostrar/Ocultar Menú y Canales">
+        <i class="fa-solid fa-bars text-xs"></i>
+      </button>
+      <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow shrink-0">
+        <i class="fa-solid fa-layer-group text-xs sm:text-sm"></i>
+      </div>
+      <div>
+        <div class="flex items-center space-x-1 sm:space-x-2">
+          <span class="font-bold text-xs sm:text-sm tracking-tight text-white hidden xs:inline">OMNIPANEL</span>
+          <span id="headerWaBadge" class="text-[8px] sm:text-[9px] px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-semibold flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> <span class="hidden sm:inline">WA: </span>Conectando...
+          </span>
+          <!-- BADGE DE RECONOCIMIENTO DE DISPOSITIVO (PC / TABLET / MÓVIL) -->
+          <span id="headerDeviceBadge" class="inline-flex items-center"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PESTAÑAS PRINCIPALES DEL PANEL (Texto oculto en móvil para máxima fluidez) -->
+    <nav class="flex items-center space-x-0.5 sm:space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800 shrink-0">
+      <button onclick="switchView('inbox')" id="navInbox" class="px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white shadow flex items-center gap-1.5 transition">
+        <i class="fa-solid fa-comments"></i>
+        <span class="hidden md:inline">Bandeja</span>
+      </button>
+      <button onclick="switchView('stats')" id="navStats" class="hidden px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition">
+        <i class="fa-solid fa-chart-line text-emerald-400"></i>
+        <span class="hidden md:inline">Estadísticas</span>
+      </button>
+      <button onclick="switchView('settings')" id="navSettings" class="hidden px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition">
+        <i class="fa-solid fa-gear text-amber-400"></i>
+        <span class="hidden md:inline">Ajustes</span>
+      </button>
+    </nav>
+
+    <!-- USUARIO AUTENTICADO Y BOTONES DE ACCIÓN -->
+    <div class="flex items-center space-x-1 sm:space-x-2 shrink-0">
+      <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-1.5 sm:px-2.5 py-1 space-x-1.5">
+        <i id="activeUserRoleIcon" class="fa-solid fa-user-shield text-amber-400 text-xs"></i>
+        <div class="leading-tight">
+          <div id="headerAuthUserName" class="text-[10px] sm:text-[11px] font-extrabold text-white truncate max-w-[70px] sm:max-w-none">Usuario</div>
+          <div id="headerAuthStatsStatus" class="hidden sm:block text-[8px] sm:text-[9px] text-emerald-400 font-semibold">Sesión activa</div>
+        </div>
+      </div>
+
+      <button id="btnSyncWA" onclick="syncWhatsAppChats()" class="hidden bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg shadow flex items-center gap-1.5 border border-slate-600 transition" title="Sincronizar conversaciones con WhatsApp">
+        <i class="fa-solid fa-rotate text-cyan-400"></i>
+        <span class="hidden lg:inline">Sincronizar WA</span>
+      </button>
+      <button onclick="toggleSimulator()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg shadow flex items-center gap-1.5 border border-emerald-400/40 transition" title="Simular Cliente">
+        <i class="fa-brands fa-whatsapp text-sm"></i>
+        <span class="hidden lg:inline">Simular</span>
+      </button>
+      <button onclick="logoutUser()" class="bg-rose-950/90 hover:bg-rose-800 text-rose-200 border border-rose-700/60 p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition" title="Cerrar sesión actual">
+        <i class="fa-solid fa-power-off text-rose-400"></i>
+        <span class="hidden md:inline">Salir</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MODAL QUICK SWITCHER ESTILO FERDIUM (Ctrl + K) -->
+  <div id="ferdiumQuickSwitcherModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-start justify-center pt-16 p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
+      <div class="p-3.5 border-b border-slate-800 flex items-center gap-2.5 bg-slate-950">
+        <i class="fa-solid fa-bolt text-blue-400 text-sm"></i>
+        <input
+          id="ferdiumQuickSearchInput"
+          type="text"
+          oninput="renderFerdiumQuickSwitcherResults()"
+          placeholder="Salto rápido a cliente, canal, workspace o acción (Esc para cerrar)..."
+          class="flex-1 bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
+        >
+        <button onclick="closeFerdiumQuickSwitcher()" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white font-bold">
+          ESC
+        </button>
+      </div>
+      <div id="ferdiumQuickSwitcherList" class="max-h-80 overflow-y-auto divide-y divide-slate-800/60 p-2 space-y-1 text-xs">
+        <!-- Renderizado por public/js/ferdium.js -->
+      </div>
+    </div>
+  </div>

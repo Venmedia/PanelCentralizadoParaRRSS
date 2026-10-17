@@ -1,0 +1,34 @@
+  <!-- ===================================================================== -->
+  <!-- VISTA 3: AJUSTES COMPLETOS (USUARIOS + WHATSAPP QR + HORARIO + PDF)   -->
+  <!-- ===================================================================== -->
+  <div id="viewSettings" class="hidden flex-1 p-3 sm:p-6 overflow-y-auto bg-slate-950">
+    <div class="max-w-5xl mx-auto space-y-6">
+      
+      <div class="border-b border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-gear text-amber-400"></i>
+            <span>Ajustes del Panel, Gestión de Usuarios y Conectividad</span>
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Crea y administra usuarios asesores, configura el horario laboral, el catálogo PDF y la conexión QR de WhatsApp.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="switchView('stats')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-chart-line"></i> Ver Estadísticas
+          </button>
+          <button onclick="switchView('inbox')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3.5 py-1.5 rounded-lg font-semibold transition">
+            Volver a la Bandeja
+          </button>
+        </div>
+      </div>
+
+      <!-- SUB-BLOQUES MODULARES DE AJUSTES -->
+      <div id="mount-settings-users"></div>
+      <div id="mount-settings-companies"></div>
+      <div id="mount-settings-whatsapp"></div>
+      <div id="mount-settings-schedule"></div>
+      <div id="mount-settings-templates"></div>
+      <div id="mount-settings-meta"></div>
+
+    </div>
+  </div>

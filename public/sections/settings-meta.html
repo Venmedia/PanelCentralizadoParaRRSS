@@ -1,0 +1,194 @@
+<!-- ===================================================================== -->
+<!-- SECCIÓN DE CONFIGURACIÓN: META GRAPH API (Instagram + Facebook)       -->
+<!-- Dual Meta App — Configuración independiente para Agropower y Tractopower -->
+<!-- ===================================================================== -->
+
+<!-- ====== AGROPOWER META APP ====== -->
+<div class="bg-slate-900 rounded-2xl border border-emerald-900/40 p-5 space-y-4">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-emerald-950 border border-emerald-800 flex items-center justify-center">
+        <i class="fa-brands fa-meta text-emerald-400 text-lg"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h3 class="text-sm font-bold text-white">Meta Graph API</h3>
+          <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-900 text-emerald-300 border border-emerald-700">AGROPOWER</span>
+        </div>
+        <p class="text-[10px] text-slate-400">Instagram DMs y Facebook Messenger para Agropower Venezuela.</p>
+      </div>
+    </div>
+    <div id="metaConnectionStatusBadgeAgro" class="px-3 py-1 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+      Sin configurar
+    </div>
+  </div>
+
+  <!-- Paso 1: Credenciales Meta App Agropower -->
+  <div class="bg-slate-950 rounded-xl border border-slate-800 p-4 space-y-3">
+    <h4 class="text-xs font-bold text-white flex items-center gap-2">
+      <span class="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[10px] font-bold">1</span>
+      Configurar Meta App — Agropower
+    </h4>
+    <p class="text-[10px] text-slate-400">
+      Crea una app exclusiva de Agropower en <a href="https://developers.facebook.com" target="_blank" class="text-emerald-400 underline">developers.facebook.com</a> y pega aquí sus credenciales.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="text-[10px] text-slate-400 block mb-1">Meta App ID — Agropower</label>
+        <input type="text" id="metaAppIdInputAgro" placeholder="Ej: 1234567890123456"
+          class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="text-[10px] text-slate-400 block mb-1">Meta App Secret — Agropower</label>
+        <input type="password" id="metaAppSecretInputAgro" placeholder="••••••••••••••••"
+          class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none">
+      </div>
+    </div>
+
+    <div>
+      <label class="text-[10px] text-slate-400 block mb-1">Verify Token (Webhook) — Agropower</label>
+      <input type="text" id="metaVerifyTokenInputAgro" value="omnipanel_meta_verify_agro_2026"
+        class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none">
+    </div>
+
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-[10px] text-slate-400 space-y-1">
+      <p><strong class="text-slate-300">📋 URL del Webhook:</strong> <code class="text-emerald-400">https://powerpanel.ddns.net/api/meta/webhook</code></p>
+      <p><strong class="text-slate-300">📋 Callback OAuth:</strong> <code class="text-emerald-400">https://powerpanel.ddns.net/api/channels/meta/callback</code></p>
+    </div>
+
+    <button onclick="saveMetaAppConfig('agro')" class="bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-2">
+      <i class="fa-solid fa-floppy-disk"></i>
+      Guardar Configuración Agropower
+    </button>
+    <div id="metaConfigFeedbackAgro" class="hidden text-[11px] font-semibold p-2.5 rounded-xl text-center"></div>
+  </div>
+
+  <!-- Paso 2: Vincular Páginas e Instagram Agropower -->
+  <div class="bg-slate-950 rounded-xl border border-slate-800 p-4 space-y-3">
+    <h4 class="text-xs font-bold text-white flex items-center gap-2">
+      <span class="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold">2</span>
+      Vincular Páginas e Instagram — Agropower
+    </h4>
+    <p class="text-[10px] text-slate-400">
+      Autoriza las páginas de Facebook e Instagram de <strong class="text-emerald-300">Agropower</strong>. Se abrirá el flujo OAuth usando las credenciales de la app configurada arriba.
+    </p>
+    <div class="flex flex-wrap gap-2">
+      <button id="metaOAuthBtnAgro" type="button" onclick="startMetaOAuth('agro')"
+        class="bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-2 cursor-pointer shadow">
+        <i class="fa-brands fa-facebook"></i>
+        <span>Vincular Cuentas Agropower</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Paso 3: Estado conexiones Agropower -->
+  <div class="bg-slate-950 rounded-xl border border-slate-800 p-4 space-y-3">
+    <h4 class="text-xs font-bold text-white flex items-center gap-2">
+      <span class="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold">3</span>
+      Estado de Conexiones — Agropower
+    </h4>
+    <div id="metaTokensStatusContainerAgro" class="space-y-2">
+      <p class="text-[10px] text-slate-500 italic">Cargando estado...</p>
+    </div>
+    <button onclick="loadMetaTokensStatus()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
+      <i class="fa-solid fa-arrows-rotate"></i>
+      Actualizar Estado
+    </button>
+  </div>
+</div>
+
+<!-- ====== TRACTOPOWER META APP ====== -->
+<div class="bg-slate-900 rounded-2xl border border-amber-900/40 p-5 space-y-4 mt-4">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-amber-950 border border-amber-800 flex items-center justify-center">
+        <i class="fa-brands fa-meta text-amber-400 text-lg"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h3 class="text-sm font-bold text-white">Meta Graph API</h3>
+          <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-900 text-amber-300 border border-amber-700">TRACTOPOWER</span>
+        </div>
+        <p class="text-[10px] text-slate-400">Instagram DMs y Facebook Messenger para Tractopower Venezuela.</p>
+      </div>
+    </div>
+    <div id="metaConnectionStatusBadgeTracto" class="px-3 py-1 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+      Sin configurar
+    </div>
+  </div>
+
+  <!-- Paso 1: Credenciales Meta App Tractopower -->
+  <div class="bg-slate-950 rounded-xl border border-slate-800 p-4 space-y-3">
+    <h4 class="text-xs font-bold text-white flex items-center gap-2">
+      <span class="w-5 h-5 rounded-full bg-amber-700 text-white flex items-center justify-center text-[10px] font-bold">1</span>
+      Configurar Meta App — Tractopower
+    </h4>
+    <p class="text-[10px] text-slate-400">
+      Crea una app exclusiva de Tractopower en <a href="https://developers.facebook.com" target="_blank" class="text-amber-400 underline">developers.facebook.com</a> y pega aquí sus credenciales.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="text-[10px] text-slate-400 block mb-1">Meta App ID — Tractopower</label>
+        <input type="text" id="metaAppIdInputTracto" placeholder="Ej: 9876543210987654"
+          class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-amber-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="text-[10px] text-slate-400 block mb-1">Meta App Secret — Tractopower</label>
+        <input type="password" id="metaAppSecretInputTracto" placeholder="••••••••••••••••"
+          class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-amber-500 focus:outline-none">
+      </div>
+    </div>
+
+    <div>
+      <label class="text-[10px] text-slate-400 block mb-1">Verify Token (Webhook) — Tractopower</label>
+      <input type="text" id="metaVerifyTokenInputTracto" value="omnipanel_meta_verify_tracto_2026"
+        class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-amber-500 focus:outline-none">
+    </div>
+
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-[10px] text-slate-400 space-y-1">
+      <p><strong class="text-slate-300">📋 URL del Webhook:</strong> <code class="text-amber-400">https://powerpanel.ddns.net/api/meta/webhook</code></p>
+      <p><strong class="text-slate-300">📋 Callback OAuth:</strong> <code class="text-amber-400">https://powerpanel.ddns.net/api/channels/meta/callback</code></p>
+    </div>
+
+    <button onclick="saveMetaAppConfig('tracto')" class="bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-2">
+      <i class="fa-solid fa-floppy-disk"></i>
+      Guardar Configuración Tractopower
+    </button>
+    <div id="metaConfigFeedbackTracto" class="hidden text-[11px] font-semibold p-2.5 rounded-xl text-center"></div>
+  </div>
+
+  <!-- Paso 2: Vincular Páginas e Instagram Tractopower -->
+  <div class="bg-slate-950 rounded-xl border border-slate-800 p-4 space-y-3">
+    <h4 class="text-xs font-bold text-white flex items-center gap-2">
+      <span class="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px] font-bold">2</span>
+      Vincular Páginas e Instagram — Tractopower
+    </h4>
+    <p class="text-[10px] text-slate-400">
+      Autoriza las páginas de Facebook e Instagram de <strong class="text-amber-300">Tractopower</strong>. Se abrirá el flujo OAuth usando las credenciales de la app configurada arriba.
+    </p>
+    <div class="flex flex-wrap gap-2">
+      <button id="metaOAuthBtnTracto" type="button" onclick="startMetaOAuth('tracto')"
+        class="bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-2 cursor-pointer shadow">
+        <i class="fa-brands fa-facebook"></i>
+        <span>Vincular Cuentas Tractopower</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Paso 3: Estado conexiones Tractopower -->
+  <div class="bg-slate-950 rounded-xl border border-slate-800 p-4 space-y-3">
+    <h4 class="text-xs font-bold text-white flex items-center gap-2">
+      <span class="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px] font-bold">3</span>
+      Estado de Conexiones — Tractopower
+    </h4>
+    <div id="metaTokensStatusContainerTracto" class="space-y-2">
+      <p class="text-[10px] text-slate-500 italic">Cargando estado...</p>
+    </div>
+    <button onclick="loadMetaTokensStatus()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
+      <i class="fa-solid fa-arrows-rotate"></i>
+      Actualizar Estado
+    </button>
+  </div>
+</div>

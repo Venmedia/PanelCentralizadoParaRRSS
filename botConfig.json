@@ -1,0 +1,76 @@
+{
+  "schedule": {
+    "mode": "outside_work_hours",
+    "workStart": "08:00",
+    "workEnd": "17:00",
+    "autoReplySource": "greeting_menu",
+    "welcomeMessage": "Feliz dia estimado cliente, gracias por contactarnos, en un momento un asesor se pondra en contacto con usted para brindarle toda la informacion que desea, gracias por su paciencia, Su consulta es muy importante para nosotros."
+  },
+  "testWhatsappChannel": "wa_agro",
+  "companies": {
+    "agropower": {
+      "name": "Agropower",
+      "instagram": "agropower_venezuela",
+      "tiktok": "agropower_venezuela",
+      "facebook": "Pendiente por configurar",
+      "whatsapp": "Baileys QR (+584220398165) / agropower_wa_principal"
+    },
+    "tractopower": {
+      "name": "Tractopower",
+      "instagram": "Tractopower_venezuela",
+      "tiktok": "tractopowervenezuela",
+      "facebook": "Pendiente por configurar",
+      "whatsapp": "Baileys QR (+584220398165) / tractopower_wa_principal"
+    }
+  },
+  "greeting": "👋 *¡Hola! Bienvenido a nuestra central de atención.*\nSelecciona qué información deseas recibir:\n\n📘 *1. CATÁLOGO Y DESC. TÉCNICA*\n • Catálogo de modelos (PDF)\n • Repuestos\n • Garantía\n\n💵 *2. COSTOS Y FINANCIAMIENTO*\n • Precio de los modelos\n • Sistema de financiamiento\n • Compras programadas\n\n🧑‍💼 *3. HABLAR CON UN ASESOR*",
+  "customCategories": [],
+  "customOptions": [],
+  "categories": {
+    "catalogo_tecnico": {
+      "title": "Catálogo y Descripción Técnica",
+      "items": {
+        "cat_modelos": {
+          "title": "Catálogo de modelos",
+          "reply": "📄 *Catálogo Oficial de Modelos:* Te adjuntamos en este mensaje nuestro catálogo completo en PDF con todas las fichas técnicas y modelos disponibles.",
+          "attachment": "Catalogo_Oficial_2026.pdf"
+        },
+        "repuestos": {
+          "title": "Repuestos",
+          "reply": "🔧 *Repuestos Originales:* Contamos con amplio stock de repuestos y consumibles originales con despacho a nivel nacional. Indícanos qué modelo tienes y qué pieza necesitas."
+        },
+        "garantia": {
+          "title": "Garantía",
+          "reply": "🛡️ *Garantía Oficial:* Todas nuestras unidades cuentan con garantía certificada de fábrica y soporte técnico directo en nuestros talleres autorizados."
+        }
+      }
+    },
+    "costos_financiamiento": {
+      "title": "Costos y Financiamiento",
+      "items": {
+        "precios": {
+          "title": "Precio de los modelos",
+          "reply": "💰 *Precio de los Modelos:* Nuestros precios de contado y lista actualizada varían según la configuración elegida. ¿Qué modelo del catálogo te interesa cotizar?"
+        },
+        "financiamiento": {
+          "title": "Sistema de financiamiento",
+          "reply": "💳 *Sistema de Financiamiento:* Ofrecemos planes con inicial desde el 30% y financiamiento en cuotas fijas mensuales de 12 a 36 meses con aprobación rápida."
+        },
+        "compras_prog": {
+          "title": "Compras programadas",
+          "reply": "📦 *Compras Programadas (Pedido de Unidades):* Reserva tu unidad bajo pedido programado congelando el precio actual con planes de pago flexibles previos a la entrega."
+        }
+      }
+    },
+    "atencion_asesor": {
+      "title": "Hablar con un asesor",
+      "items": {
+        "asesor": {
+          "title": "Hablar con un asesor",
+          "reply": "🧑‍💼 *Atención con Asesor:* ¡Con gusto! Te recordamos que nuestro horario de trabajo es de 8am a 5pm. Hemos notificado a uno de nuestros asesores comerciales para atender tu solicitud personalmente a la brevedad posible. Gracias por comunicarte con nosotros.",
+          "waitingAdvisor": true
+        }
+      }
+    }
+  }
+}

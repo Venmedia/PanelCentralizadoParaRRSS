@@ -1,0 +1,176 @@
+<!-- ===================================================================== -->
+<!-- VINCULACIÓN OFICIAL DE WHATSAPP VÍA CÓDIGO QR (AGROPOWER & TRACTOPOWER) -->
+<!-- Arquitectura Dual — Conexión sin costo adicional por escaneo directo  -->
+<!-- ===================================================================== -->
+
+<div class="space-y-4">
+  <!-- Cabecera explicativa limpia -->
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-xl shrink-0">
+          <i class="fa-brands fa-whatsapp"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-sm text-white flex items-center gap-2">
+            <span>Líneas de WhatsApp Oficiales</span>
+            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800">QR DUAL</span>
+          </h3>
+          <p class="text-[11px] text-slate-400 mt-0.5">
+            Escanea el código QR de cada teléfono físico para conectar las 2 líneas independientes de WhatsApp. Ambas conviven en la bandeja de entrada centralizada.
+          </p>
+        </div>
+      </div>
+      <div class="text-[10px] text-slate-500 italic bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+        Dispositivos Enlazados oficiales • Costo: $0
+      </div>
+    </div>
+  </div>
+
+  <!-- TARJETAS DUALES EN GRID (AGROPOWER & TRACTOPOWER) -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+    <!-- ====== LÍNEA 1: AGROPOWER WHATSAPP ====== -->
+    <div class="bg-slate-900 border border-emerald-800/60 rounded-2xl p-5 shadow-xl space-y-4 flex flex-col justify-between">
+      <div>
+        <!-- Cabecera Agropower -->
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-8 h-8 rounded-lg bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-400">
+              <i class="fa-brands fa-whatsapp text-base"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <h4 class="font-bold text-xs text-white">WhatsApp Oficial</h4>
+                <span class="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-700">AGROPOWER</span>
+              </div>
+              <div class="text-[10px] text-slate-400">Línea de atención y ventas de Agropower</div>
+            </div>
+          </div>
+
+          <div id="qrStatusBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> Esperando QR...
+          </div>
+        </div>
+
+        <!-- Recuadro del Código QR y Estado -->
+        <div class="flex flex-col sm:flex-row items-center gap-4 pt-4">
+          <div class="w-48 h-48 bg-white p-2.5 rounded-2xl flex flex-col items-center justify-center shadow-xl relative border-4 border-slate-800 shrink-0">
+            <img id="qrImageElement" src="" alt="Código QR WhatsApp Agropower" class="w-40 h-40 object-contain hidden">
+            <div id="qrLoadingSpinner" class="flex flex-col items-center justify-center text-slate-800 space-y-2">
+              <i class="fa-solid fa-circle-notch fa-spin text-2xl text-emerald-600"></i>
+              <span class="text-[11px] font-semibold text-slate-600">Generando QR...</span>
+            </div>
+            <div id="qrConnectedState" class="hidden flex-col items-center justify-center text-emerald-600 space-y-1.5 text-center p-2">
+              <i class="fa-solid fa-circle-check text-4xl text-emerald-500"></i>
+              <span class="font-extrabold text-xs text-slate-900">¡Línea Conectada!</span>
+              <span id="connectedPhoneLabel" class="text-[10px] font-mono font-bold text-slate-700 bg-emerald-50 px-2 py-0.5 rounded"></span>
+              <span class="text-[9px] text-emerald-700 font-semibold">🌿 Agropower Activo</span>
+            </div>
+          </div>
+
+          <!-- Instrucciones de Escaneo Agropower -->
+          <div class="flex-1 space-y-2 text-xs">
+            <h5 class="font-bold text-white text-[11px]">Pasos para conectar Agropower:</h5>
+            <ol class="space-y-1 text-[11px] text-slate-300 list-decimal pl-4">
+              <li>Abre <strong>WhatsApp</strong> en el teléfono físico de <strong>Agropower</strong>.</li>
+              <li>Toca en <strong>Menú (3 puntos)</strong> o <strong>Configuración</strong>.</li>
+              <li>Selecciona <strong>Dispositivos vinculados</strong> → <strong>Vincular un dispositivo</strong>.</li>
+              <li>Apunta la cámara a este código QR.</li>
+            </ol>
+            <p class="text-[10px] text-emerald-400/90 pt-1">
+              ✓ Los mensajes de esta línea ingresan automáticamente identificados con el badge verde <strong>🌿 Agropower</strong>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Botonera Agropower -->
+      <div class="flex items-center gap-2 pt-3 border-t border-slate-800">
+        <button onclick="restartWhatsAppConnection('agro')" class="bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow">
+          <i class="fa-solid fa-arrows-rotate"></i>
+          <span>Refrescar QR Agropower</span>
+        </button>
+        <button onclick="logoutWhatsApp('agro')" class="bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/60 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition">
+          <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> Desvincular
+        </button>
+      </div>
+    </div>
+
+    <!-- ====== LÍNEA 2: TRACTOPOWER WHATSAPP ====== -->
+    <div class="bg-slate-900 border border-amber-800/60 rounded-2xl p-5 shadow-xl space-y-4 flex flex-col justify-between">
+      <div>
+        <!-- Cabecera Tractopower -->
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-8 h-8 rounded-lg bg-amber-950 border border-amber-800 flex items-center justify-center text-amber-400">
+              <i class="fa-brands fa-whatsapp text-base"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <h4 class="font-bold text-xs text-white">WhatsApp Oficial</h4>
+                <span class="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-700">TRACTOPOWER</span>
+              </div>
+              <div class="text-[10px] text-slate-400">Línea de atención y ventas de Tractopower</div>
+            </div>
+          </div>
+
+          <div id="qrStatusBadgeTracto" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Pendiente por vincular
+          </div>
+        </div>
+
+        <!-- Recuadro del Código QR y Estado Tractopower -->
+        <div class="flex flex-col sm:flex-row items-center gap-4 pt-4">
+          <div class="w-48 h-48 bg-slate-950 border-4 border-slate-800 p-2.5 rounded-2xl flex flex-col items-center justify-center shadow-xl relative shrink-0">
+            <img id="qrImageElementTracto" src="" alt="Código QR WhatsApp Tractopower" class="w-40 h-40 object-contain hidden">
+            <div id="qrLoadingSpinnerTracto" class="hidden flex-col items-center justify-center text-slate-300 space-y-2">
+              <i class="fa-solid fa-circle-notch fa-spin text-2xl text-amber-500"></i>
+              <span class="text-[11px] font-semibold text-slate-400">Generando QR Tractopower...</span>
+            </div>
+            <div id="qrConnectedStateTracto" class="hidden flex-col items-center justify-center text-amber-500 space-y-1.5 text-center p-2">
+              <i class="fa-solid fa-circle-check text-4xl text-amber-400"></i>
+              <span class="font-extrabold text-xs text-white">¡Línea Conectada!</span>
+              <span id="connectedPhoneLabelTracto" class="text-[10px] font-mono font-bold text-amber-300 bg-amber-950 px-2 py-0.5 rounded border border-amber-800"></span>
+              <span class="text-[9px] text-amber-400 font-semibold">🚜 Tractopower Activo</span>
+            </div>
+            <!-- Estado Inicial: Pendiente / Placeholder QR -->
+            <div id="qrPendingStateTracto" class="flex flex-col items-center justify-center text-slate-500 space-y-2 text-center p-3">
+              <div class="w-12 h-12 rounded-xl bg-amber-950/40 border border-amber-900/60 flex items-center justify-center text-amber-400/80">
+                <i class="fa-solid fa-qrcode text-xl"></i>
+              </div>
+              <span class="text-[11px] font-bold text-slate-300">Línea 2 en espera</span>
+              <span class="text-[9px] text-slate-500 leading-tight">Haz clic abajo para generar el QR de Tractopower</span>
+            </div>
+          </div>
+
+          <!-- Instrucciones de Escaneo Tractopower -->
+          <div class="flex-1 space-y-2 text-xs">
+            <h5 class="font-bold text-white text-[11px]">Pasos para conectar Tractopower:</h5>
+            <ol class="space-y-1 text-[11px] text-slate-300 list-decimal pl-4">
+              <li>Haz clic en <strong>Generar QR Tractopower</strong> cuando tengas a mano el segundo teléfono.</li>
+              <li>Abre <strong>WhatsApp</strong> en el teléfono físico de <strong>Tractopower</strong>.</li>
+              <li>Selecciona <strong>Dispositivos vinculados</strong> → <strong>Vincular un dispositivo</strong>.</li>
+              <li>Escanea el código QR que se mostrará aquí.</li>
+            </ol>
+            <p class="text-[10px] text-amber-400/90 pt-1">
+              ✓ Los mensajes de esta línea ingresan automáticamente identificados con el badge ámbar <strong>🚜 Tractopower</strong>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Botonera Tractopower -->
+      <div class="flex items-center gap-2 pt-3 border-t border-slate-800">
+        <button onclick="restartWhatsAppConnection('tracto')" class="bg-amber-700 hover:bg-amber-600 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow">
+          <i class="fa-solid fa-qrcode"></i>
+          <span>Generar QR Tractopower</span>
+        </button>
+        <button onclick="logoutWhatsApp('tracto')" class="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition">
+          <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> Desvincular
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
