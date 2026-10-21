@@ -19,9 +19,28 @@ function registerSocketListeners() {
 
   socket.on('conversations_updated', updated => {
     if (!authenticatedUser) return;
-    conversations = updated;
+    const waList = Array.isArray(updated) ? updated : [];
+
+    // Preservar conversaciones de otros canales (Instagram, Facebook Messenger, TikTok)
+    const otherChannelsConvs = (conversations || []).filter(c => {
+      const ch = c.channel || '';
+      return ch.startsWith('ig_') || ch.startsWith('fb_') || ch.startsWith('tk_') || String(c.id).startsWith('ig:') || String(c.id).startsWith('fb:');
+    });
+
+    // Combinar WhatsApp actualizado con los demás canales evitando duplicados
+    const merged = [...waList];
+    otherChannelsConvs.forEach(oc => {
+      if (!merged.some(c => String(c.id) === String(oc.id))) {
+        merged.push(oc);
+      }
+    });
+
+    conversations = merged;
     renderChatList();
-    const active = conversations.find(c => c.id === activeChatId);
+    if (typeof renderFerdiumServiceDock === 'function') {
+      renderFerdiumServiceDock();
+    }
+    const active = conversations.find(c => String(c.id) === String(activeChatId));
     if (active) {
       renderMessages(active);
       if (typeof updateBotHeaderUI === 'function') updateBotHeaderUI(active);

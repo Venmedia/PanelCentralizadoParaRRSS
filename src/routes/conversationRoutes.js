@@ -13,13 +13,30 @@ const {
 const analyticsService = require('../services/analyticsService');
 const { evaluateSchedule } = require('../services/scheduleService');
 const { updateAdvisorSessionActivity } = require('../services/sessionService');
+const { getMetaConversationsAsArray } = require('../services/metaApiService');
+
+const getNowVE = () => new Date().toLocaleString('es-VE', {
+  timeZone: 'America/Caracas',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+});
 
 function createConversationRouter(io) {
   const router = express.Router();
 
-  // Obtener todas las conversaciones activas
+  // Obtener todas las conversaciones activas (WhatsApp + Meta Instagram/Messenger)
   router.get('/conversations', requireAuth, (req, res) => {
-    res.json(getConversations());
+    const waConvs = getConversations();
+    let metaConvs = [];
+    try {
+      metaConvs = getMetaConversationsAsArray();
+    } catch (e) {
+      console.warn('[Conversations] Error obteniendo conversaciones de Meta:', e.message);
+    }
+    res.json([...waConvs, ...metaConvs]);
   });
 
   // Enviar mensaje desde el panel al cliente
@@ -29,7 +46,7 @@ function createConversationRouter(io) {
     const conv = conversations.find(c => c.id === Number(conversationId));
     if (!conv) return res.status(404).json({ error: 'No encontrado' });
 
-    const now = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Caracas' });
+    const now = getNowVE();
     const todayISO = getTodayISO();
     conv.channel = normalizeChannel(conv.channel);
     conv.company = getCompanyFromChannel(conv.channel);
@@ -117,7 +134,7 @@ function createConversationRouter(io) {
     const conv = conversations.find(c => c.id === Number(conversationId));
     if (!conv) return res.status(404).json({ error: 'No encontrado' });
 
-    const now = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Caracas' });
+    const now = getNowVE();
     if (channel) {
       conv.channel = normalizeChannel(channel);
       conv.company = getCompanyFromChannel(conv.channel);
@@ -187,7 +204,7 @@ function createConversationRouter(io) {
     const activeUser = req.authUser;
     const userIsAdmin = isAdminUser(activeUser);
     const fullName = `${activeUser.firstName} ${activeUser.lastName}`;
-    const now = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Caracas' });
+    const now = getNowVE();
     const todayISO = getTodayISO();
 
     conv.channel = normalizeChannel(conv.channel);

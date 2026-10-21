@@ -14,7 +14,8 @@ const {
     getSenderProfile,
     getOrCreateMetaConversation,
     addMessageToMetaConversation,
-    getMetaConversationsAsArray
+    getMetaConversationsAsArray,
+    syncInstagramRecentConversations
 } = require('../services/metaApiService');
 
 module.exports = function createMetaWebhookRoutes(io) {
@@ -200,6 +201,32 @@ module.exports = function createMetaWebhookRoutes(io) {
         try {
             const convs = getMetaConversationsAsArray();
             res.json(convs);
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    /**
+     * POST /api/meta/sync - Sincroniza activamente conversaciones e historial reciente de Instagram
+     */
+    router.post('/sync', async (req, res) => {
+        try {
+            console.log('[MetaWebhook] 🔄 Solicitud de sincronización activa de Instagram...');
+            const result = await syncInstagramRecentConversations(io);
+            res.json({ success: true, ...result });
+        } catch (e) {
+            console.error('[MetaWebhook] ❌ Error en sincronización activa:', e.message);
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    /**
+     * GET /api/meta/sync - Alias GET para sincronización rápida
+     */
+    router.get('/sync', async (req, res) => {
+        try {
+            const result = await syncInstagramRecentConversations(io);
+            res.json({ success: true, ...result });
         } catch (e) {
             res.status(500).json({ error: e.message });
         }

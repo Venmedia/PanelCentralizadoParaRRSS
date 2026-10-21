@@ -83,6 +83,9 @@ function mergeMetaConversation(metaConv) {
     conversations.unshift(metaConv);
   }
   renderChatList();
+  if (typeof renderFerdiumServiceDock === 'function') {
+    renderFerdiumServiceDock();
+  }
   const active = conversations.find(c => String(c.id) === String(activeChatId));
   if (active) {
     renderMessages(active);
@@ -104,6 +107,9 @@ function mergeAllMetaConversations(metaConvs) {
     }
   }
   renderChatList();
+  if (typeof renderFerdiumServiceDock === 'function') {
+    renderFerdiumServiceDock();
+  }
   const active = conversations.find(c => String(c.id) === String(activeChatId));
   if (active) {
     renderMessages(active);
@@ -121,12 +127,70 @@ function getDisplayPhoneForChat(c) {
   return `+${raw}`;
 }
 
+/**
+ * Formatea la fecha y hora de la conversación (ej: "20/10/2026, 08:30 p. m.")
+ * Si el registro previo solo tiene la hora, le añade la fecha para seguimiento completo.
+ */
+function formatConversationTimestamp(rawTime) {
+  if (!rawTime) return '';
+  const str = String(rawTime).trim();
+  // Si ya contiene la fecha completa (tiene '/' o '-'), retornarla directamente
+  if (str.includes('/') || (str.includes('-') && str.length > 8)) {
+    return str;
+  }
+  // Si solo tiene la hora (ej: "08:13 p. m."), agregar la fecha de hoy en formato dd/mm/yyyy
+  const today = new Date().toLocaleDateString('es-VE', {
+    timeZone: 'America/Caracas',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+  return `${today}, ${str}`;
+}
+
+/**
+ * Convierte un string de fecha/hora (ej: "20/10/2026, 08:30 p. m.") a milisegundos para ordenar
+ */
+function parseTimestampToMs(timeStr) {
+  if (!timeStr) return 0;
+  const parts = String(timeStr).split(',');
+  if (parts.length >= 2) {
+    const dateParts = parts[0].trim().split('/');
+    if (dateParts.length === 3) {
+      const day = parseInt(dateParts[0], 10);
+      const month = parseInt(dateParts[1], 10) - 1;
+      const year = parseInt(dateParts[2], 10);
+
+      const timePart = parts[1].trim();
+      const timeMatch = timePart.match(/(\d+):(\d+)(?::(\d+))?\s*(a\.\s*m\.|p\.\s*m\.|am|pm)?/i);
+      if (timeMatch) {
+        let h = parseInt(timeMatch[1], 10);
+        const m = parseInt(timeMatch[2], 10);
+        const s = parseInt(timeMatch[3] || '0', 10);
+        const ampm = (timeMatch[4] || '').toLowerCase().replace(/\s+/g, '');
+        if ((ampm.includes('p') || ampm === 'pm') && h < 12) h += 12;
+        if ((ampm.includes('a') || ampm === 'am') && h === 12) h = 0;
+        return new Date(year, month, day, h, m, s).getTime();
+      }
+    }
+  }
+  const d = new Date(timeStr);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
 function renderChatList() {
   const container = document.getElementById('chatListContainer');
   const search = document.getElementById('searchInput').value.toLowerCase();
   container.innerHTML = '';
 
-  conversations.forEach(c => {
+  // Ordenar conversaciones: más recientes primero según su fecha y hora real
+  const sorted = [...conversations].sort((a, b) => {
+    const ta = parseTimestampToMs(a.time);
+    const tb = parseTimestampToMs(b.time);
+    return tb - ta;
+  });
+
+  sorted.forEach(c => {
     const meta = channelMeta[c.channel] || channelMeta['wa_agro'];
     const displayPhone = getDisplayPhoneForChat(c);
 
@@ -185,7 +249,7 @@ function renderChatList() {
         <div class="flex-1 min-w-0 pr-4">
           <div class="flex justify-between items-baseline gap-1">
             <span class="font-bold text-[11px] text-white truncate">${c.name}</span>
-            <span class="text-[9px] text-slate-400 shrink-0">${c.time || ''}</span>
+            <span class="text-[9px] text-slate-400 shrink-0 font-mono">${formatConversationTimestamp(c.time)}</span>
           </div>
           ${
             displayPhone
@@ -228,6 +292,13 @@ function selectConversation(id) {
   const c = conversations.find(x => String(x.id) === String(id));
   if (!c) return;
 
+  // Marcar conversación como leída y refrescar badges
+  c.isRead = true;
+  c.unreadCount = 0;
+  if (typeof renderFerdiumServiceDock === 'function') {
+    renderFerdiumServiceDock();
+  }
+
   const meta = channelMeta[c.channel] || channelMeta['wa_agro'];
   const displayPhone = getDisplayPhoneForChat(c);
   document.getElementById('activeAvatar').innerText = c.initials || 'WA';
@@ -261,6 +332,19 @@ function selectConversation(id) {
   const badge = document.getElementById('activeChannelBadge');
   badge.innerText = meta.label;
   badge.className = `text-[9px] px-2 py-0.2 rounded font-semibold border ${meta.badgeClass}`;
+
+  const timeBadge = document.getElementById('activeTimeBadge');
+  const timeText = document.getElementById('activeTimeText');
+  if (timeText && c.time) {
+    timeText.innerText = formatConversationTimestamp(c.time);
+    if (timeBadge) {
+      timeBadge.classList.remove('hidden');
+      timeBadge.classList.add('inline-flex');
+    }
+  } else if (timeBadge) {
+    timeBadge.classList.add('hidden');
+    timeBadge.classList.remove('inline-flex');
+  }
 
   updateSaleButtonUI(c);
   updateWaitingAdvisorHeaderUI(c);
@@ -450,7 +534,7 @@ function renderMessages(c) {
         <span class="text-[9px] text-slate-400 mb-0.5 flex items-center gap-1.5">
           <strong class="text-slate-300">${c.name}</strong>
           ${displayPhone ? `<span class="font-mono text-emerald-400 font-semibold">(${displayPhone})</span>` : ''}
-          <span>• ${m.time}</span>
+          <span>• ${formatConversationTimestamp(m.time)}</span>
         </span>
         <div class="bg-slate-800 border border-slate-700 text-slate-100 rounded-xl rounded-tl-none p-2.5 text-xs leading-relaxed">
           ${htmlText}
@@ -480,7 +564,7 @@ function renderMessages(c) {
         : `👤 ${m.operatorName || 'Asesor'}`;
       div.innerHTML = `
         <span class="text-[9px] ${isScheduled ? 'text-emerald-400' : 'text-blue-400'} mb-0.5 flex items-center gap-1">
-          <span>${senderLabel} • ${m.time}</span>
+          <span>${senderLabel} • ${formatConversationTimestamp(m.time)}</span>
         </span>
         <div class="${isScheduled ? 'bg-emerald-950/70 border border-emerald-700/60' : 'bg-blue-600'} text-slate-100 rounded-xl rounded-tr-none p-2.5 text-xs leading-relaxed shadow">
           ${htmlText}
@@ -714,8 +798,52 @@ function filterChannel(ch) {
 
   renderChatList();
 
+  // Si se selecciona un canal de Instagram, sincronizar en segundo plano
+  if (ch && ch.startsWith('ig_')) {
+    syncInstagramDirectly(true);
+  }
+
   // Mostrar/ocultar barra de acceso rápido TikTok
   if (typeof renderTikTokQuickAccessIfNeeded === 'function') {
     renderTikTokQuickAccessIfNeeded();
+  }
+}
+
+/**
+ * Sincroniza conversaciones de Instagram bajo demanda contra Meta Graph API
+ * @param {boolean} [silent=false] - Si es true no muestra spinners o toasts intrusivos
+ */
+async function syncInstagramDirectly(silent = false) {
+  const icon = document.getElementById('iconSyncMeta');
+  if (icon) icon.classList.add('fa-spin');
+
+  try {
+    const res = await fetch('/api/meta/sync', { method: 'POST' });
+    const data = await res.json();
+
+    if (icon) icon.classList.remove('fa-spin');
+
+    if (data.success) {
+      if (!silent) {
+        const msg = data.newMessages > 0
+          ? `✅ Sincronizado: ${data.newMessages} nuevos mensajes recibidos de Instagram.`
+          : '✅ Instagram sincronizado al día con Meta Graph API.';
+        if (typeof showModalFeedback === 'function') {
+          showModalFeedback(msg, 'success');
+        } else {
+          alert(msg);
+        }
+      }
+    } else if (!silent) {
+      if (typeof showModalFeedback === 'function') {
+        showModalFeedback(`Aviso al sincronizar: ${data.error || 'Error desconocido'}`, 'warning');
+      }
+    }
+  } catch (err) {
+    if (icon) icon.classList.remove('fa-spin');
+    console.warn('[MetaSync] Error sincronizando Instagram:', err);
+    if (!silent) {
+      alert('Error al conectar con el servidor para sincronizar Instagram.');
+    }
   }
 }

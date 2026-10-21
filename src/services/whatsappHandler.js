@@ -44,7 +44,14 @@ function initWhatsAppHandler(io) {
     const conversations = getConversations();
     const resolvedPhone = resolveRealPhoneFromBaileys(remoteJid, realPhone);
     const formattedPhone = formatWhatsAppPhone(resolvedPhone);
-    const now = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Caracas' });
+    const now = new Date().toLocaleString('es-VE', {
+      timeZone: 'America/Caracas',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
 
     let conv = conversations.find(
       c => c.jid === remoteJid || (resolvedPhone && c.phone === resolvedPhone)
@@ -91,20 +98,27 @@ function initWhatsAppHandler(io) {
 
     // ─── Mensajes enviados desde el teléfono físico (fromMe) ───
     if (fromMe) {
-      const lastMsg = conv.messages[conv.messages.length - 1];
       const displayText = text || mediaLabel || '';
       const suffixedText = `${displayText} (Enviado desde el teléfono físico)`;
 
-      // Deduplicación
-      if (
-        lastMsg &&
-        lastMsg.sender === 'operator' &&
-        (lastMsg.text === displayText || lastMsg.text === suffixedText)
-      ) {
+      // Deduplicación inteligente: descartar si es un eco del bot programado o del operador en el panel
+      const recentMatches = conv.messages.slice(-5).some(m =>
+        (m.sender === 'operator' || m.sender === 'scheduled') &&
+        (
+          m.text === displayText ||
+          m.text === suffixedText ||
+          (m.text && displayText && m.text.trim() === displayText.trim()) ||
+          (m.attachment && (m.attachment === displayText || m.attachment === mediaLabel))
+        )
+      );
+
+      if (recentMatches) {
+        // Es un eco del mensaje ya enviado por el bot automático o el panel: ignorar para no duplicar
+        console.log(`[WhatsApp] 🔄 Eco de bot/operador detectado y descartado para "${conv.name}": "${displayText.substring(0, 50)}..."`);
         return;
       }
 
-      // El asesor/admin respondió desde el teléfono físico: apagar PIDE ASESOR y pausar bot
+      // El asesor/admin respondió genuinamente desde el teléfono físico: apagar PIDE ASESOR y pausar bot
       conv.waitingAdvisor = false;
       conv.botActive = false;
       conv.attendedBy = 'Teléfono Móvil';
@@ -145,37 +159,34 @@ function initWhatsAppHandler(io) {
     const hasRealText = text && text !== mediaLabel;
 
     if (hasRealText) {
-      // Si el bot está pausado porque un asesor humano tomó el chat
-      if (conv.botActive === false) {
-        const clean = text.toLowerCase().trim();
-        // Solo reactivar flag si el cliente vuelve a pedir asesor explícitamente
-        if (clean === '3' || clean.includes('asesor') || clean.includes('humano')) {
-          conv.waitingAdvisor = true;
-        }
-        saveConversations(conversations);
-        io.emit('conversations_updated', conversations);
-        return;
-      }
-
       const config = loadBotConfig();
       const schedStatus = evaluateSchedule(config.schedule, config);
 
+      console.log(`[Bot WhatsApp] 📩 Mensaje entrante de "${conv.name}" (${remoteJid}): "${text}" | Horario VE: ${schedStatus.serverTime} | shouldAutoReply: ${schedStatus.shouldAutoReply}`);
+
       if (!schedStatus.shouldAutoReply) {
-        // Dentro del horario laboral: notificar al asesor, no auto-responder
+        // Dentro del horario laboral: atención humana directa, no auto-responder
+        console.log(`[Bot WhatsApp] ⏸️ Dentro de horario laboral (${schedStatus.workStart} - ${schedStatus.workEnd} VE). Bot en pausa, atención humana asignada.`);
         saveConversations(conversations);
         io.emit('conversations_updated', conversations);
         return;
       }
 
-      // Fuera del horario laboral: usar botEngine
+      // Fuera del horario laboral: procesar mensaje con botEngine
+      const clean = text.toLowerCase().trim();
+      const isAskingAdvisor = clean === '3' || clean.includes('asesor') || clean.includes('humano');
+
       const botResult = processIncomingMessage(text);
 
       if (botResult) {
         let replyText = botResult.reply;
         let attachment = botResult.attachment || null;
 
-        if (botResult.pauseBot) {
+        if (botResult.pauseBot || isAskingAdvisor) {
           conv.waitingAdvisor = true;
+          conv.botActive = false;
+        } else {
+          conv.botActive = true;
         }
 
         if (replyText) {
@@ -185,13 +196,15 @@ function initWhatsAppHandler(io) {
             attachment,
             time: now
           });
+          console.log(`[Bot WhatsApp] 🤖 Respondiendo automáticamente a ${remoteJid}: "${replyText.substring(0, 60)}..."`);
           await whatsappService.sendText(remoteJid, replyText, conv.channel || conv.company);
 
           if (botResult.attachmentUrl) {
             try {
+              console.log(`[Bot WhatsApp] 📄 Enviando documento adjunto a ${remoteJid}: ${botResult.attachmentUrl}`);
               await whatsappService.sendPdf(remoteJid, botResult.attachmentUrl, attachment, conv.channel || conv.company);
             } catch (e) {
-              console.error('[Bot] Error enviando documento:', e.message);
+              console.error('[Bot WhatsApp] ❌ Error enviando documento:', e.message);
             }
           }
         }

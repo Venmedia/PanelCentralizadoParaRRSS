@@ -18,25 +18,39 @@ const FERDIUM_DOCK_ITEMS = [
 ];
 
 /**
- * Calcula los badges de mensajes/conversaciones por canal (equivalente a Ferdium.setBadge(direct, indirect))
+ * Calcula los badges de mensajes nuevos sin leer por canal.
+ * Solo muestra número cuando hay mensajes nuevos reales sin leer.
+ * Si todos los mensajes ya fueron leídos, no muestra ningún número.
  */
 function getFerdiumChannelBadgeCounts(channelKey) {
-  if (!Array.isArray(conversations)) return { direct: 0, total: 0 };
-  let direct = 0;
-  let total = 0;
+  if (!Array.isArray(conversations)) return { unread: 0 };
+  let unread = 0;
 
   conversations.forEach(c => {
     const ch = c.channel === 'wa1' ? 'wa_agro' : c.channel;
     if (ch === channelKey) {
-      total++;
-      const lastMsg = c.messages?.[c.messages.length - 1];
-      if (c.waitingAdvisor || (lastMsg && lastMsg.sender === 'client')) {
-        direct++;
+      // Si el chat está actualmente seleccionado y visible en pantalla, se considera leído
+      const isCurrentlyActive = String(c.id) === String(activeChatId);
+      if (isCurrentlyActive) {
+        c.isRead = true;
+        c.unreadCount = 0;
+        return;
+      }
+
+      // Conteo de mensajes nuevos
+      if (c.unreadCount && c.unreadCount > 0) {
+        unread += c.unreadCount;
+      } else if (!c.isRead) {
+        const lastMsg = c.messages?.[c.messages.length - 1];
+        // Solo cuenta como nuevo si el último mensaje es del cliente sin responder
+        if (c.waitingAdvisor || (lastMsg && lastMsg.sender === 'client')) {
+          unread++;
+        }
       }
     }
   });
 
-  return { direct, total };
+  return { unread };
 }
 
 /**
@@ -114,14 +128,11 @@ function renderFerdiumServiceDock() {
           : 'bg-emerald-400'
         : 'bg-slate-600';
 
+      // Solo mostrar badge si hay mensajes nuevos sin leer; de lo contrario no mostrar nada
       const unreadBadgeHtml =
-        badges.direct > 0
+        badges.unread > 0
           ? `<span class="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-rose-600 text-white text-[9px] font-extrabold flex items-center justify-center shadow">
-               ${badges.direct}
-             </span>`
-          : badges.total > 0
-          ? `<span class="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-slate-700 text-slate-200 text-[8px] font-bold flex items-center justify-center">
-               ${badges.total}
+               ${badges.unread}
              </span>`
           : '';
 
@@ -230,19 +241,21 @@ function renderSplitConversationView() {
       .replace(/\n/g, '<br>');
 
     if (m.sender === 'client') {
+      const timeStr = typeof formatConversationTimestamp === 'function' ? formatConversationTimestamp(m.time) : m.time;
       div.className = 'flex flex-col items-start max-w-[88%]';
       div.innerHTML = `
-        <span class="text-[9px] text-slate-400 mb-0.5">${conv.name} ${splitPhone ? '<strong class="text-emerald-400 font-mono">(' + splitPhone + ')</strong>' : ''} • ${m.time}</span>
+        <span class="text-[9px] text-slate-400 mb-0.5">${conv.name} ${splitPhone ? '<strong class="text-emerald-400 font-mono">(' + splitPhone + ')</strong>' : ''} • ${timeStr}</span>
         <div class="bg-slate-800 border border-slate-700 text-slate-100 rounded-xl rounded-tl-none p-2 text-[11px] leading-relaxed">
           ${htmlText}
         </div>
       `;
     } else {
       const isScheduled = m.sender === 'scheduled';
+      const timeStr = typeof formatConversationTimestamp === 'function' ? formatConversationTimestamp(m.time) : m.time;
       div.className = 'flex flex-col items-end max-w-[88%] ml-auto';
       div.innerHTML = `
         <span class="text-[9px] ${isScheduled ? 'text-emerald-400' : 'text-indigo-400'} mb-0.5">
-          ${isScheduled ? '⚡ Programado' : `👤 ${m.operatorName || 'Asesor'}`} • ${m.time}
+          ${isScheduled ? '⚡ Programado' : `👤 ${m.operatorName || 'Asesor'}`} • ${timeStr}
         </span>
         <div class="${isScheduled ? 'bg-emerald-950/70 border border-emerald-700/60' : 'bg-indigo-600'} text-slate-100 rounded-xl rounded-tr-none p-2 text-[11px] leading-relaxed">
           ${htmlText}

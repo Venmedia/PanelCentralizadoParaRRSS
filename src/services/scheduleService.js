@@ -22,14 +22,17 @@ function evaluateSchedule(scheduleConfig, fullConfig) {
   const workEnd = sched.workEnd || '17:00';
   const welcomeMessage = getAutoReplyMessage(fullConfig || { schedule: sched });
 
-  // SIEMPRE usar hora de Venezuela (America/Caracas = UTC-4)
+  // SIEMPRE usar hora de Venezuela (America/Caracas = UTC-4) garantizada con Intl
   const now = new Date();
-  const vzParts = now.toLocaleString('en-US', { timeZone: 'America/Caracas' }).split(/[/,: ]+/);
-  let vzHours = parseInt(vzParts[3]);
-  const vzMinutes = parseInt(vzParts[4]);
-  const ampm = vzParts[6];
-  if (ampm === 'PM' && vzHours < 12) vzHours += 12;
-  if (ampm === 'AM' && vzHours === 12) vzHours = 0;
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Caracas',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false
+  });
+  const parts = dtf.formatToParts(now);
+  const vzHours = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+  const vzMinutes = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
   const currentMinutes = vzHours * 60 + vzMinutes;
 
   const [startH, startM] = workStart.split(':').map(Number);

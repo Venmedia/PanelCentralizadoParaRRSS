@@ -578,12 +578,15 @@ async function subscribePageToWebhooks(pageId, pageAccessToken) {
 function loadMetaConversations() {
     try {
         if (fs.existsSync(PATHS.META_CONVERSATIONS_FILE)) {
-            return JSON.parse(fs.readFileSync(PATHS.META_CONVERSATIONS_FILE, 'utf8'));
+            const data = JSON.parse(fs.readFileSync(PATHS.META_CONVERSATIONS_FILE, 'utf8'));
+            if (!data.chats) data.chats = {};
+            if (!data.deletedChats) data.deletedChats = {};
+            return data;
         }
     } catch (e) {
         console.error('[MetaAPI] Error cargando metaConversations.json:', e.message);
     }
-    return { chats: {} };
+    return { chats: {}, deletedChats: {} };
 }
 
 /**
@@ -619,7 +622,7 @@ function getOrCreateMetaConversation(senderId, platform, channelKey, senderName)
             senderId,
             profilePic: null,
             messages: [],
-            time: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Caracas' }),
+            time: new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
             botActive: false,
             waitingAdvisor: false,
             saleClosed: false
@@ -650,7 +653,7 @@ function addMessageToMetaConversation(chatId, message) {
         return store.chats[chatId];
     }
 
-    const now = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Caracas' });
+    const now = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     if (message.sender === 'operator') {
         store.chats[chatId].waitingAdvisor = false;
         store.chats[chatId].botActive = false;
@@ -674,7 +677,7 @@ function addMessageToMetaConversation(chatId, message) {
  */
 function getMetaConversationsAsArray() {
     const store = loadMetaConversations();
-    return Object.values(store.chats).map(chat => ({
+    return Object.values(store.chats || {}).map(chat => ({
         ...chat,
         id: chat.id,
         jid: null,
@@ -684,17 +687,232 @@ function getMetaConversationsAsArray() {
 }
 
 /**
- * Elimina una conversación de Meta del almacén persistente
+ * Elimina una conversación de Meta del almacén persistente y la registra para evitar
+ * que el sincronizador periódico la reimporte automáticamente salvo que el cliente escriba de nuevo.
  */
 function deleteMetaConversation(chatId) {
     const store = loadMetaConversations();
+    if (!store.deletedChats) store.deletedChats = {};
     if (store.chats && store.chats[chatId]) {
         const removed = store.chats[chatId];
         delete store.chats[chatId];
+        store.deletedChats[chatId] = {
+            deletedAt: new Date().toISOString(),
+            name: removed.name || chatId
+        };
         saveMetaConversations(store);
         return removed;
     }
     return null;
+}
+
+// ======================== SINCRONIZACIÓN ACTIVA INSTAGRAM ========================
+
+/**
+ * Sincroniza conversaciones recientes de Instagram consultando activamente la Graph API de Meta.
+ * Recupera mensajes nuevos de clientes o de operadores desde la app móvil oficial de Instagram.
+ * @param {Object} [io] - Instancia de Socket.io para emisión en tiempo real
+ * @returns {Promise<{ synced: number, newMessages: number, updatedChats: string[] }>}
+ */
+async function syncInstagramRecentConversations(io) {
+    const store = loadMetaConversations();
+    if (!store.chats) store.chats = {};
+    if (!store.deletedChats) store.deletedChats = {};
+
+    let totalSynced = 0;
+    let newMessagesCount = 0;
+    const updatedChatIds = [];
+    let hasChanges = false;
+
+    for (const company of ['agro', 'tracto']) {
+        const tokens = loadMetaTokens(company);
+        const userToken = tokens.userToken;
+        const pageToken = tokens.pages?.[0]?.accessToken || userToken;
+
+        if (!pageToken || !tokens.igAccounts || tokens.igAccounts.length === 0) {
+            continue;
+        }
+
+        for (const ig of tokens.igAccounts) {
+            const igBusinessId = ig.id || ig.igBusinessId;
+            if (!igBusinessId) continue;
+
+            const channelKey = ig.channelKey || (company === 'tracto' ? 'ig_tracto' : 'ig_agro');
+            const companyName = company === 'tracto' ? 'Tractopower' : 'Agropower';
+
+            try {
+                // Consultar los 20 hilos más recientes
+                const url = `${GRAPH_API_BASE}/${igBusinessId}/conversations?fields=id,updated_time,participants,messages.limit(15){id,message,created_time,from}&limit=20&access_token=${pageToken}`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (data.error) {
+                    console.warn(`[MetaSync] Error consultando IG ${igBusinessId} (${company}):`, data.error.message);
+                    continue;
+                }
+
+                const threads = data.data || [];
+                totalSynced += threads.length;
+
+                for (const thread of threads) {
+                    const participant = thread.participants?.data?.find(p => p.id !== igBusinessId) || thread.participants?.data?.[0];
+                    if (!participant || !participant.id) continue;
+
+                    const customerId = participant.id;
+                    const chatId = `ig:${customerId}`;
+
+                    // Protección contra re-importación de chats borrados manualmente
+                    if (store.deletedChats[chatId]) {
+                        const threadUpdatedMs = new Date(thread.updated_time || 0).getTime();
+                        const deletedMs = new Date(store.deletedChats[chatId].deletedAt || 0).getTime();
+                        if (threadUpdatedMs <= deletedMs) {
+                            continue;
+                        }
+                        // Actividad nueva posterior al borrado: reactivar chat
+                        delete store.deletedChats[chatId];
+                    }
+
+                    const customerName = participant.username || participant.name || 'Usuario Instagram';
+                    const initials = customerName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 2).toUpperCase() || 'IG';
+
+                    if (!store.chats[chatId]) {
+                        store.chats[chatId] = {
+                            id: chatId,
+                            name: customerName,
+                            initials,
+                            platform: 'instagram',
+                            channelKey,
+                            channel: channelKey,
+                            company: companyName,
+                            senderId: customerId,
+                            profilePic: null,
+                            messages: [],
+                            time: '',
+                            botActive: false,
+                            waitingAdvisor: false,
+                            saleClosed: false
+                        };
+                        hasChanges = true;
+                        updatedChatIds.push(chatId);
+                    } else if (store.chats[chatId].name.startsWith('Usuario ') && !customerName.startsWith('Usuario ')) {
+                        store.chats[chatId].name = customerName;
+                        store.chats[chatId].initials = initials;
+                        hasChanges = true;
+                    }
+
+                    const convRef = store.chats[chatId];
+                    if (!convRef.messages) convRef.messages = [];
+
+                    const remoteMsgs = (thread.messages?.data || []).slice().reverse();
+                    let threadNewMsgs = 0;
+
+                    for (const rm of remoteMsgs) {
+                        const exists = convRef.messages.some(m => m.messageId === rm.id);
+                        if (!exists) {
+                            const isOperator = rm.from?.id === igBusinessId;
+                            const msgTime = new Date(rm.created_time).toLocaleString('es-VE', {
+                                timeZone: 'America/Caracas',
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            });
+
+                            const newMsgObj = {
+                                sender: isOperator ? 'operator' : 'client',
+                                text: rm.message || '',
+                                time: msgTime,
+                                platform: 'instagram',
+                                messageId: rm.id,
+                                operatorName: isOperator ? 'Móvil / Instagram App' : undefined
+                            };
+
+                            convRef.messages.push(newMsgObj);
+                            threadNewMsgs++;
+                            newMessagesCount++;
+                            hasChanges = true;
+
+                            if (io) {
+                                io.emit('meta_message_received', {
+                                    conversation: convRef,
+                                    message: newMsgObj,
+                                    platform: 'instagram',
+                                    channelKey
+                                });
+                            }
+                        }
+                    }
+
+                    if (remoteMsgs.length > 0) {
+                        const lastRemote = remoteMsgs[remoteMsgs.length - 1];
+                        const lastTime = new Date(lastRemote.created_time).toLocaleString('es-VE', {
+                            timeZone: 'America/Caracas',
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                        if (convRef.time !== lastTime) {
+                            convRef.time = lastTime;
+                            hasChanges = true;
+                        }
+                    }
+
+                    if (threadNewMsgs > 0 && !updatedChatIds.includes(chatId)) {
+                        updatedChatIds.push(chatId);
+                    }
+                }
+            } catch (err) {
+                console.error(`[MetaSync] Error sincronizando Instagram ${igBusinessId}:`, err.message);
+            }
+        }
+    }
+
+    if (hasChanges) {
+        saveMetaConversations(store);
+        if (io) {
+            const allMetaConvs = getMetaConversationsAsArray();
+            io.emit('meta_conversations_updated', allMetaConvs);
+            try {
+                const { getConversations } = require('./storageService');
+                const waConvs = getConversations();
+                io.emit('conversations_updated', [...waConvs, ...allMetaConvs]);
+            } catch (e) {}
+        }
+        console.log(`[MetaSync] 🔄 Sincronización completada: ${updatedChatIds.length} chats actualizados, ${newMessagesCount} nuevos mensajes.`);
+    }
+
+    return {
+        synced: totalSynced,
+        newMessages: newMessagesCount,
+        updatedChats: updatedChatIds
+    };
+}
+
+let syncIntervalHandle = null;
+
+/**
+ * Inicia el cronómetro de sincronización automática periódica para Instagram
+ * @param {Object} io - Socket.io
+ * @param {number} [intervalMs=45000] - Intervalo en milisegundos (por defecto 45 segundos)
+ */
+function startInstagramAutoSync(io, intervalMs = 45000) {
+    if (syncIntervalHandle) return;
+    console.log(`[MetaSync] 🕒 Sincronizador automático de Instagram activo (cada ${Math.round(intervalMs / 1000)}s)`);
+
+    setTimeout(() => {
+        syncInstagramRecentConversations(io).catch(e => {
+            console.warn('[MetaSync] Error en primera sincronización:', e.message);
+        });
+    }, 5000);
+
+    syncIntervalHandle = setInterval(() => {
+        syncInstagramRecentConversations(io).catch(e => {
+            console.warn('[MetaSync] Error en sincronización periódica:', e.message);
+        });
+    }, intervalMs);
 }
 
 module.exports = {
@@ -734,5 +952,8 @@ module.exports = {
     getOrCreateMetaConversation,
     addMessageToMetaConversation,
     getMetaConversationsAsArray,
-    deleteMetaConversation
+    deleteMetaConversation,
+    // Sincronización Automática
+    syncInstagramRecentConversations,
+    startInstagramAutoSync
 };

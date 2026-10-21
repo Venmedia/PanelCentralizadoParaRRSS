@@ -24,6 +24,7 @@ const createUserRouter = require('./src/routes/userRoutes');
 const createAnalyticsRouter = require('./src/routes/analyticsRoutes');
 const createChannelAuthRouter = require('./src/routes/channelAuthRoutes');
 const createMetaWebhookRouter = require('./src/routes/metaWebhookRoutes');
+const { startInstagramAutoSync } = require('./src/services/metaApiService');
 const analyticsService = require('./src/services/analyticsService');
 
 // Inicializar servicio de analíticas (migración legacy, purga, directorio)
@@ -77,4 +78,6 @@ server.listen(PORT, () => {
   console.log(`🤖 Auto-Respuesta: ${sched.shouldAutoReply ? 'ACTIVA (Fuera de horario)' : 'EN PAUSA (Dentro de horario laboral)'}`);
   console.log(`📸 Meta Graph API: Webhook en /api/meta/webhook | OAuth en /api/channels/meta/oauth/:key`);
   console.log(`================================================================`);
+  // Iniciar sincronización periódica continua de Instagram (cada 45 segundos)
+  startInstagramAutoSync(io, 45000);
 });

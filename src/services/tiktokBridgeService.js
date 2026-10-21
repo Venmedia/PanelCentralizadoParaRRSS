@@ -415,10 +415,13 @@ function integrateIncomingTikTokMessage({ channelKey, senderUsername, text, send
   let conv = currentList.find(c => String(c.id) === String(convId));
 
   const now = new Date();
-  const timeFormatted = now.toLocaleTimeString('es-VE', {
+  const timeFormatted = now.toLocaleString('es-VE', {
+    timeZone: 'America/Caracas',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
     hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
+    minute: '2-digit'
   });
 
   const newMsg = {

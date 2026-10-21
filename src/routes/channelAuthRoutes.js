@@ -40,7 +40,8 @@ const {
     getTokenForChannel,
     addMessageToMetaConversation,
     getMetaConversationsAsArray,
-    companyFromChannelKey
+    companyFromChannelKey,
+    syncInstagramRecentConversations
 } = require('../services/metaApiService');
 
 module.exports = function createChannelAuthRoutes(io, whatsappService) {
@@ -567,6 +568,20 @@ module.exports = function createChannelAuthRoutes(io, whatsappService) {
                 res.status(500).json({ error: e.message });
             }
         })();
+    });
+
+    /**
+     * 11b. Sincronizar activamente Instagram vía Meta API
+     */
+    router.post('/meta/sync', requireAuth, async (req, res) => {
+        try {
+            console.log('[ChannelAuthRoutes] 🔄 Solicitud de sincronización activa de Instagram recibida...');
+            const result = await syncInstagramRecentConversations(io);
+            res.json({ success: true, ...result });
+        } catch (e) {
+            console.error('[ChannelAuthRoutes] Error en sincronización Meta:', e.message);
+            res.status(500).json({ error: e.message });
+        }
     });
 
     /**

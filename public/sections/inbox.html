@@ -28,7 +28,13 @@
         </div>
 
 
-        <input id="searchInput" oninput="renderChatList()" type="text" placeholder="Buscar cliente, empresa o mensaje..." class="w-full bg-slate-950 border border-slate-800 rounded-md px-2.5 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-blue-500">
+        <div class="flex items-center gap-1.5">
+          <input id="searchInput" oninput="renderChatList()" type="text" placeholder="Buscar cliente, empresa o mensaje..." class="flex-1 bg-slate-950 border border-slate-800 rounded-md px-2.5 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-blue-500">
+          <button id="btnSyncInstagram" onclick="syncInstagramDirectly(false)" title="Sincronizar Instagram con Meta Graph API" class="px-2 py-1 rounded bg-slate-800 text-slate-300 hover:text-white hover:bg-pink-600/80 transition text-[11px] font-semibold flex items-center gap-1 shrink-0 border border-slate-700/60">
+            <i class="fa-solid fa-rotate text-[10px]" id="iconSyncMeta"></i>
+            <span class="hidden sm:inline">Sincronizar</span>
+          </button>
+        </div>
       </div>
 
       <div id="chatListContainer" class="flex-1 overflow-y-auto divide-y divide-slate-800/60">
@@ -61,6 +67,10 @@
               </span>
               <span id="activeChannelBadge" class="text-[9px] px-2 py-0.2 rounded font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
                 WhatsApp (Prueba)
+              </span>
+              <span id="activeTimeBadge" class="hidden text-[9px] px-2 py-0.2 rounded font-mono bg-slate-800 text-slate-300 border border-slate-700 items-center gap-1">
+                <i class="fa-regular fa-clock text-[8px] text-cyan-400"></i>
+                <span id="activeTimeText"></span>
               </span>
               <span id="activeSaleClosedBadge" class="hidden text-[9px] px-2 py-0.2 rounded font-extrabold bg-emerald-500 text-slate-950">
                 🏆 VENTA CERRADA
@@ -171,8 +181,6 @@
 
       <!-- Historial de mensajes -->
       <div id="messagesViewport" class="flex-1 p-3 sm:p-4 overflow-y-auto space-y-3">
-        <!-- Renderizado dinámicamente -->
-      </div>
         <!-- Renderizado dinámicamente -->
       </div>
 
