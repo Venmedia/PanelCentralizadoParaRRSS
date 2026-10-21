@@ -10,6 +10,7 @@ async function loadInitialData() {
     // Cargar conversaciones de Meta (Instagram DMs + Facebook Messenger)
     await loadMetaConversationsIntoInbox();
 
+    sortConversationsDesc(conversations);
     renderChatList();
     if (conversations.length > 0) selectConversation(conversations[0].id);
   } catch (e) {
@@ -80,8 +81,9 @@ function mergeMetaConversation(metaConv) {
   if (idx !== -1) {
     conversations[idx] = metaConv;
   } else {
-    conversations.unshift(metaConv);
+    conversations.push(metaConv);
   }
+  sortConversationsDesc(conversations);
   renderChatList();
   if (typeof renderFerdiumServiceDock === 'function') {
     renderFerdiumServiceDock();
@@ -106,6 +108,7 @@ function mergeAllMetaConversations(metaConvs) {
       conversations.push(mc);
     }
   }
+  sortConversationsDesc(conversations);
   renderChatList();
   if (typeof renderFerdiumServiceDock === 'function') {
     renderFerdiumServiceDock();
@@ -149,33 +152,112 @@ function formatConversationTimestamp(rawTime) {
 }
 
 /**
- * Convierte un string de fecha/hora (ej: "20/10/2026, 08:30 p. m.") a milisegundos para ordenar
+ * Convierte un string de fecha/hora de cualquier canal (WhatsApp, Instagram, TikTok, Facebook)
+ * a milisegundos para ordenar estrictamente de más nueva a más vieja.
+ * Soporta formatos:
+ * - "20/10/2026, 08:30 p. m." o "20/10/2026, 10:20 PM"
+ * - "20/10/2026, 20:30"
+ * - "2026-10-20T18:44:26Z"
+ * - "20/10/2026"
+ * - "10:55 a. m." o "08:31 p. m." (solo hora)
+ * - Fallback automático al último mensaje o al id de la conversación
+ * @param {string} timeStr
+ * @param {Object} [conv]
+ * @returns {number}
  */
-function parseTimestampToMs(timeStr) {
-  if (!timeStr) return 0;
-  const parts = String(timeStr).split(',');
+function parseTimestampToMs(timeStr, conv) {
+  if (!timeStr && conv && Array.isArray(conv.messages) && conv.messages.length > 0) {
+    const lastMsg = conv.messages[conv.messages.length - 1];
+    timeStr = lastMsg ? lastMsg.time : null;
+  }
+
+  if (!timeStr) {
+    if (conv && typeof conv.id === 'number' && conv.id > 1700000000000) {
+      return conv.id;
+    }
+    return 0;
+  }
+
+  const rawStr = String(timeStr).trim();
+
+  // Caso 1: ISO o fecha estándar YYYY-MM-DD
+  if (rawStr.includes('-') && rawStr.length >= 10) {
+    const direct = new Date(rawStr);
+    if (!isNaN(direct.getTime())) return direct.getTime();
+  }
+
+  // Normalizar caracteres invisibles / espacios no rompibles
+  const cleanStr = rawStr.replace(/[\u00A0\u202F]/g, ' ');
+
+  // Caso 2: Contiene coma "dd/mm/yyyy, hh:mm(:ss) (a. m./p. m.)"
+  const parts = cleanStr.split(',');
   if (parts.length >= 2) {
-    const dateParts = parts[0].trim().split('/');
+    const datePart = parts[0].trim();
+    const timePart = parts[1].trim();
+    const dateParts = datePart.split('/');
+
     if (dateParts.length === 3) {
       const day = parseInt(dateParts[0], 10);
       const month = parseInt(dateParts[1], 10) - 1;
       const year = parseInt(dateParts[2], 10);
 
-      const timePart = parts[1].trim();
-      const timeMatch = timePart.match(/(\d+):(\d+)(?::(\d+))?\s*(a\.\s*m\.|p\.\s*m\.|am|pm)?/i);
+      const timeMatch = timePart.match(/(\d+):(\d+)(?::(\d+))?\s*(a\.?\s*m\.?|p\.?\s*m\.?|am|pm)?/i);
       if (timeMatch) {
         let h = parseInt(timeMatch[1], 10);
         const m = parseInt(timeMatch[2], 10);
         const s = parseInt(timeMatch[3] || '0', 10);
-        const ampm = (timeMatch[4] || '').toLowerCase().replace(/\s+/g, '');
-        if ((ampm.includes('p') || ampm === 'pm') && h < 12) h += 12;
-        if ((ampm.includes('a') || ampm === 'am') && h === 12) h = 0;
-        return new Date(year, month, day, h, m, s).getTime();
+        const ampm = (timeMatch[4] || '').toLowerCase().replace(/[^apm]/g, '');
+
+        if (ampm.startsWith('p') && h < 12) h += 12;
+        if (ampm.startsWith('a') && h === 12) h = 0;
+
+        const d = new Date(year, month, day, h, m, s);
+        if (!isNaN(d.getTime())) return d.getTime();
       }
     }
   }
-  const d = new Date(timeStr);
-  return isNaN(d.getTime()) ? 0 : d.getTime();
+
+  // Caso 3: Solo fecha "dd/mm/yyyy"
+  if (cleanStr.includes('/') && cleanStr.split('/').length === 3) {
+    const [d, m, y] = cleanStr.split('/').map(x => parseInt(x, 10));
+    const dt = new Date(y, m - 1, d);
+    if (!isNaN(dt.getTime())) return dt.getTime();
+  }
+
+  // Caso 4: Solo hora (ej: "10:55 a. m." o "08:31 p. m.")
+  const timeOnlyMatch = cleanStr.match(/^(\d+):(\d+)(?::(\d+))?\s*(a\.?\s*m\.?|p\.?\s*m\.?|am|pm)?$/i);
+  if (timeOnlyMatch) {
+    let h = parseInt(timeOnlyMatch[1], 10);
+    const m = parseInt(timeOnlyMatch[2], 10);
+    const s = parseInt(timeOnlyMatch[3] || '0', 10);
+    const ampm = (timeOnlyMatch[4] || '').toLowerCase().replace(/[^apm]/g, '');
+    if (ampm.startsWith('p') && h < 12) h += 12;
+    if (ampm.startsWith('a') && h === 12) h = 0;
+
+    let baseDate = new Date();
+    if (conv && typeof conv.id === 'number' && conv.id > 1700000000000) {
+      baseDate = new Date(conv.id);
+    }
+    const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), h, m, s);
+    if (!isNaN(d.getTime())) return d.getTime();
+  }
+
+  const fallback = new Date(cleanStr);
+  return isNaN(fallback.getTime()) ? 0 : fallback.getTime();
+}
+
+/**
+ * Ordena un array de conversaciones en orden cronológico descendente (de más nueva a más vieja)
+ * @param {Array} convArray
+ * @returns {Array}
+ */
+function sortConversationsDesc(convArray) {
+  if (!Array.isArray(convArray)) return [];
+  return convArray.sort((a, b) => {
+    const ta = parseTimestampToMs(a ? a.time : null, a);
+    const tb = parseTimestampToMs(b ? b.time : null, b);
+    return tb - ta;
+  });
 }
 
 function renderChatList() {
@@ -183,14 +265,10 @@ function renderChatList() {
   const search = document.getElementById('searchInput').value.toLowerCase();
   container.innerHTML = '';
 
-  // Ordenar conversaciones: más recientes primero según su fecha y hora real
-  const sorted = [...conversations].sort((a, b) => {
-    const ta = parseTimestampToMs(a.time);
-    const tb = parseTimestampToMs(b.time);
-    return tb - ta;
-  });
+  // Ordenar conversaciones en el array global: más recientes primero según su fecha y hora real
+  sortConversationsDesc(conversations);
 
-  sorted.forEach(c => {
+  conversations.forEach(c => {
     const meta = channelMeta[c.channel] || channelMeta['wa_agro'];
     const displayPhone = getDisplayPhoneForChat(c);
 
@@ -348,8 +426,6 @@ function selectConversation(id) {
 
   updateSaleButtonUI(c);
   updateWaitingAdvisorHeaderUI(c);
-  const replySelect = document.getElementById('replyChannelSelect');
-  if (replySelect) replySelect.value = c.channel === 'wa1' ? 'wa_agro' : c.channel;
   renderMessages(c);
   renderChatList();
 
@@ -796,7 +872,31 @@ function filterChannel(ch) {
   });
 
 
+  sortConversationsDesc(conversations);
   renderChatList();
+
+  // Seleccionar automáticamente la conversación más reciente del canal filtrado
+  const currentActive = conversations.find(c => String(c.id) === String(activeChatId));
+  const activeMatches = currentActive ? (
+    ch === 'all' ||
+    (ch === 'company_agro' && (channelMeta[currentActive.channel]?.company === 'agropower')) ||
+    (ch === 'company_tracto' && (channelMeta[currentActive.channel]?.company === 'tractopower')) ||
+    ((currentActive.channel === 'wa1' ? 'wa_agro' : currentActive.channel) === ch)
+  ) : false;
+
+  if (!activeMatches) {
+    const firstMatch = conversations.find(c => {
+      if (ch === 'all') return true;
+      const meta = channelMeta[c.channel] || channelMeta['wa_agro'];
+      if (ch === 'company_agro') return meta.company === 'agropower';
+      if (ch === 'company_tracto') return meta.company === 'tractopower';
+      const cChan = c.channel === 'wa1' ? 'wa_agro' : c.channel;
+      return cChan === ch;
+    });
+    if (firstMatch) {
+      selectConversation(firstMatch.id);
+    }
+  }
 
   // Si se selecciona un canal de Instagram, sincronizar en segundo plano
   if (ch && ch.startsWith('ig_')) {

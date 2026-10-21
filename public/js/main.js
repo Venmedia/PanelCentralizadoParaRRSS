@@ -36,6 +36,9 @@ function registerSocketListeners() {
     });
 
     conversations = merged;
+    if (typeof sortConversationsDesc === 'function') {
+      sortConversationsDesc(conversations);
+    }
     renderChatList();
     if (typeof renderFerdiumServiceDock === 'function') {
       renderFerdiumServiceDock();

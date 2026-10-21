@@ -13,7 +13,7 @@ const {
 const analyticsService = require('../services/analyticsService');
 const { evaluateSchedule } = require('../services/scheduleService');
 const { updateAdvisorSessionActivity } = require('../services/sessionService');
-const { getMetaConversationsAsArray } = require('../services/metaApiService');
+const { getMetaConversationsAsArray, parseTimestampToMs } = require('../services/metaApiService');
 
 const getNowVE = () => new Date().toLocaleString('es-VE', {
   timeZone: 'America/Caracas',
@@ -27,7 +27,8 @@ const getNowVE = () => new Date().toLocaleString('es-VE', {
 function createConversationRouter(io) {
   const router = express.Router();
 
-  // Obtener todas las conversaciones activas (WhatsApp + Meta Instagram/Messenger)
+  // Obtener todas las conversaciones activas (WhatsApp, Instagram, TikTok, Facebook Messenger)
+  // ordenadas estrictamente por fecha de la más nueva a la más vieja
   router.get('/conversations', requireAuth, (req, res) => {
     const waConvs = getConversations();
     let metaConvs = [];
@@ -36,7 +37,9 @@ function createConversationRouter(io) {
     } catch (e) {
       console.warn('[Conversations] Error obteniendo conversaciones de Meta:', e.message);
     }
-    res.json([...waConvs, ...metaConvs]);
+    const combined = [...waConvs, ...metaConvs];
+    combined.sort((a, b) => parseTimestampToMs(b.time, b) - parseTimestampToMs(a.time, a));
+    res.json(combined);
   });
 
   // Enviar mensaje desde el panel al cliente
