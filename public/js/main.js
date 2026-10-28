@@ -185,12 +185,15 @@ async function syncWhatsAppChats() {
   }
 
   try {
-    // Recargar conversaciones desde el servidor
+    // 1. Invocar sincronización activa de sockets de WhatsApp en el backend
+    await fetch('/api/whatsapp/sync-chats', { method: 'POST' }).catch(() => {});
+
+    // 2. Recargar conversaciones desde el servidor
     const res = await fetch('/api/conversations');
     if (!res.ok) throw new Error('Error al cargar conversaciones');
     conversations = await res.json();
 
-    // También recargar Meta si está disponible
+    // 3. También recargar Meta si está disponible
     if (typeof loadMetaConversationsIntoInbox === 'function') {
       await loadMetaConversationsIntoInbox();
     }
@@ -202,9 +205,13 @@ async function syncWhatsAppChats() {
       renderMessages(active);
     }
 
-    showSyncToast(`✅ Actualizado. ${conversations.length} conversación(es) en el panel.\n💡 Usa el botón ✕ en cada chat para eliminarlo.`, 'emerald');
+    const waAgro = conversations.filter(c => c.channel === 'wa_agro').length;
+    const waTracto = conversations.filter(c => c.channel === 'wa_tracto').length;
+    const metaCount = conversations.filter(c => c.platform === 'instagram' || c.platform === 'facebook').length;
+
+    showSyncToast(`🟢 WhatsApp Sincronizado:\n• Agropower: ${waAgro} conversación(es)\n• Tractopower: ${waTracto} conversación(es)\n(Total en panel con Meta: ${conversations.length})`, 'emerald');
   } catch (e) {
-    showSyncToast('❌ Error al recargar conversaciones', 'rose');
+    showSyncToast('❌ Error al sincronizar: ' + e.message, 'rose');
   } finally {
     if (btn) btn.disabled = false;
     if (icon) {

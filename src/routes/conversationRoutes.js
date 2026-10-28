@@ -1,4 +1,6 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const whatsappService = require('../../whatsappService');
 const { requireAuth } = require('../middleware/authMiddleware');
 const {
@@ -8,12 +10,14 @@ const {
   normalizeChannel,
   getCompanyFromChannel,
   getTodayISO,
-  isAdminUser
+  isAdminUser,
+  loadUsers
 } = require('../services/storageService');
 const analyticsService = require('../services/analyticsService');
 const { evaluateSchedule } = require('../services/scheduleService');
 const { updateAdvisorSessionActivity } = require('../services/sessionService');
 const { getMetaConversationsAsArray, parseTimestampToMs } = require('../services/metaApiService');
+const exportService = require('../services/exportService');
 
 const getNowVE = () => new Date().toLocaleString('es-VE', {
   timeZone: 'America/Caracas',
@@ -44,7 +48,7 @@ function createConversationRouter(io) {
 
   // Enviar mensaje desde el panel al cliente
   router.post('/messages/send', requireAuth, async (req, res) => {
-    const { conversationId, text, attachment } = req.body;
+    const { conversationId, text, attachment, fileData, fileName, fileType } = req.body;
     const conversations = getConversations();
     const conv = conversations.find(c => c.id === Number(conversationId));
     if (!conv) return res.status(404).json({ error: 'No encontrado' });
@@ -56,51 +60,99 @@ function createConversationRouter(io) {
 
     const activeUser = req.authUser;
     const userIsAdmin = isAdminUser(activeUser);
-    const fullName = `${activeUser.firstName} ${activeUser.lastName}`;
+    
+    let advisorDisplayName = 'Asesor';
+    if (activeUser.username === 'Jesuse' || activeUser.firstName?.toLowerCase().includes('jesus')) {
+      advisorDisplayName = 'Asesor Jesus';
+    } else if (activeUser.username === 'rcazorla' || activeUser.firstName?.toLowerCase().includes('ricardo')) {
+      advisorDisplayName = 'Asesor Ricardo';
+    } else if (userIsAdmin || activeUser.username === 'admin') {
+      advisorDisplayName = 'Administrador';
+    } else {
+      advisorDisplayName = `Asesor ${activeUser.firstName || activeUser.username}`.trim();
+    }
+    const fullName = `${activeUser.firstName || ''} ${activeUser.lastName || ''}`.trim() || activeUser.username;
 
     conv.waitingAdvisor = false;
     conv.botActive = false;
+    conv.isRead = true;
+    conv.unreadCount = 0;
     conv.time = now;
     conv.attendedBy = activeUser.username;
-    conv.attendedByName = fullName;
+    conv.attendedByName = advisorDisplayName;
 
-    conv.messages.push({
+    let mediaUrl = null;
+    let mediaType = null;
+    let mediaLabel = null;
+    let localFilePath = null;
+
+    if (fileData && fileName) {
+      try {
+        const mediaDir = path.join(__dirname, '..', '..', 'public', 'media', 'whatsapp');
+        if (!fs.existsSync(mediaDir)) {
+          fs.mkdirSync(mediaDir, { recursive: true });
+        }
+        const base64Content = fileData.includes(';base64,') ? fileData.split(';base64,')[1] : fileData;
+        const fileBuffer = Buffer.from(base64Content, 'base64');
+        const cleanName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const uniqueFileName = `${Date.now()}_${cleanName}`;
+        const targetPath = path.join(mediaDir, uniqueFileName);
+        fs.writeFileSync(targetPath, fileBuffer);
+
+        localFilePath = targetPath;
+        mediaUrl = `/media/whatsapp/${uniqueFileName}`;
+
+        const mime = fileType || 'application/octet-stream';
+        if (mime.startsWith('image/')) {
+          mediaType = 'image';
+          mediaLabel = `📷 Imagen (${fileName})`;
+        } else if (mime.startsWith('video/')) {
+          mediaType = 'video';
+          mediaLabel = `🎥 Video (${fileName})`;
+        } else if (mime.startsWith('audio/')) {
+          mediaType = 'audio';
+          mediaLabel = `🎤 Audio (${fileName})`;
+        } else {
+          mediaType = 'document';
+          mediaLabel = `📄 Documento — ${fileName}`;
+        }
+      } catch (err) {
+        console.error('[Error guardando archivo adjunto del asesor]:', err);
+      }
+    }
+
+    const messageObj = {
       sender: 'operator',
-      operatorName: fullName,
+      origin: 'panel',
+      operatorName: advisorDisplayName,
       operatorUser: activeUser.username,
       text: text || '',
       attachment: attachment || null,
       time: now
-    });
+    };
 
-    if (!userIsAdmin) {
-      updateAdvisorSessionActivity(activeUser.id, req.authSession?.sessionId, false);
+    if (mediaType && mediaUrl) {
+      messageObj.mediaType = mediaType;
+      messageObj.mediaUrl = mediaUrl;
+      messageObj.mediaLabel = mediaLabel;
+    }
 
-      // Registrar client_attended (solo si no se ha atendido hoy esta conversación por este usuario)
-      const alreadyAttended = analyticsService.hasAttendedToday(activeUser.id, conv.id);
-      if (!alreadyAttended) {
-        analyticsService.recordEvent({
-          date: todayISO,
-          time: now,
-          userId: activeUser.id,
-          username: activeUser.username,
-          userFullName: fullName,
-          type: 'client_attended',
-          company: conv.company,
-          channel: conv.channel,
-          conversationId: conv.id,
-          clientName: conv.name
-        });
-      }
+    conv.messages.push(messageObj);
 
-      // Registrar message_sent (siempre)
+    if (req.authSession?.sessionId) {
+      updateAdvisorSessionActivity(activeUser.id, req.authSession.sessionId, false);
+    }
+
+    // Registrar client_attended (solo si no se ha atendido hoy esta conversación por este usuario)
+    const alreadyAttended = analyticsService.hasAttendedToday(activeUser.id, conv.id, activeUser.username);
+    if (!alreadyAttended) {
       analyticsService.recordEvent({
         date: todayISO,
         time: now,
         userId: activeUser.id,
         username: activeUser.username,
         userFullName: fullName,
-        type: 'message_sent',
+        type: 'client_attended',
         company: conv.company,
         channel: conv.channel,
         conversationId: conv.id,
@@ -108,58 +160,56 @@ function createConversationRouter(io) {
       });
     }
 
+    // Registrar message_sent (siempre que el usuario hable con el cliente)
+    analyticsService.recordEvent({
+      date: todayISO,
+      time: now,
+      userId: activeUser.id,
+      username: activeUser.username,
+      userFullName: fullName,
+      type: 'message_sent',
+      company: conv.company,
+      channel: conv.channel,
+      conversationId: conv.id,
+      clientName: conv.name
+    });
+
     if (conv.channel === 'wa_agro' || conv.channel === 'wa_tracto' || conv.channel === 'wa1') {
-      const targetJid =
-        conv.jid ||
-        (conv.phone.length > 13
-          ? `${conv.phone}@lid`
-          : conv.phone.includes('@')
-          ? conv.phone
-          : `${conv.phone}@s.whatsapp.net`);
-      console.log(`[Panel Send - ${fullName}] Enviando a ${conv.name} (${targetJid}): "${text}"`);
-      if (attachment) {
-        await whatsappService.sendPdf(targetJid, attachment, text, conv.channel || conv.company);
+      const cleanPhone = String(conv.phone || '').replace(/\D/g, '');
+      let targetJid;
+      if (conv.jid && conv.jid.includes('@g.us')) {
+        // Mensajes grupales
+        targetJid = conv.jid;
+      } else if (cleanPhone && cleanPhone.length >= 10 && cleanPhone.length <= 13) {
+        // Enviar SIEMPRE al número telefónico real del cliente (@s.whatsapp.net)
+        // Esto garantiza entrega al móvil y sincronización bidireccional en WhatsApp Web
+        targetJid = `${cleanPhone}@s.whatsapp.net`;
+      } else if (conv.jid && !conv.jid.endsWith('@lid')) {
+        targetJid = conv.jid;
       } else {
-        await whatsappService.sendText(targetJid, text, conv.channel || conv.company);
+        targetJid = conv.jid || (cleanPhone.length > 13 ? `${cleanPhone}@lid` : `${cleanPhone}@s.whatsapp.net`);
+      }
+
+      console.log(`[Panel Send - ${fullName}] Enviando a ${conv.name} (${targetJid}) vía ${conv.channel || conv.company}: "${text || ''}" ${mediaUrl ? `[Archivo: ${mediaUrl}]` : ''}`);
+      let sendResult = null;
+      if (localFilePath) {
+        sendResult = await whatsappService.sendMedia(targetJid, localFilePath, text, fileType, conv.channel || conv.company);
+      } else if (attachment) {
+        sendResult = await whatsappService.sendPdf(targetJid, attachment, text, conv.channel || conv.company);
+      } else {
+        sendResult = await whatsappService.sendText(targetJid, text, conv.channel || conv.company);
+      }
+
+      if (sendResult === null) {
+        console.warn(`[WhatsApp Send] ⚠️ No se pudo entregar a ${targetJid} en ${conv.channel || conv.company}. Verifica que la sesión de WhatsApp esté conectada.`);
+      } else if (sendResult?.key?.id) {
+        messageObj.messageId = sendResult.key.id;
       }
     }
 
     saveConversations(conversations);
     io.emit('conversations_updated', conversations);
-    if (!userIsAdmin) io.emit('analytics_updated');
-    res.json({ success: true, conversation: conv });
-  });
-
-  // Simulador de cliente desde el panel derecho
-  router.post('/messages/simulate', requireAuth, (req, res) => {
-    const { conversationId, channel, text } = req.body;
-    const conversations = getConversations();
-    const conv = conversations.find(c => c.id === Number(conversationId));
-    if (!conv) return res.status(404).json({ error: 'No encontrado' });
-
-    const now = getNowVE();
-    if (channel) {
-      conv.channel = normalizeChannel(channel);
-      conv.company = getCompanyFromChannel(conv.channel);
-    }
-    conv.time = now;
-    conv.messages.push({ sender: 'client', text: text || 'Hola', time: now });
-
-    if (conv.botActive !== false) {
-      const config = loadBotConfig();
-      const schedStatus = evaluateSchedule(config.schedule, config);
-      if (schedStatus.shouldAutoReply && schedStatus.welcomeMessage) {
-        conv.messages.push({
-          sender: 'scheduled',
-          text: schedStatus.welcomeMessage,
-          attachment: null,
-          time: now
-        });
-      }
-    }
-
-    saveConversations(conversations);
-    io.emit('conversations_updated', conversations);
+    io.emit('analytics_updated');
     res.json({ success: true, conversation: conv });
   });
 
@@ -186,6 +236,8 @@ function createConversationRouter(io) {
     if (conv) {
       conv.waitingAdvisor = false;
       conv.botActive = false;
+      conv.isRead = true;
+      conv.unreadCount = 0;
       if (req.authUser) {
         conv.attendedBy = req.authUser.username;
         conv.attendedByName = `${req.authUser.firstName} ${req.authUser.lastName}`;
@@ -194,7 +246,206 @@ function createConversationRouter(io) {
       io.emit('conversations_updated', conversations);
       return res.json({ success: true, conversation: conv });
     }
+
+    // Verificar si es un chat de Meta (Instagram / Facebook)
+    try {
+      const fs = require('fs');
+      const { PATHS } = require('../config/constants');
+      if (fs.existsSync(PATHS.META_CONVERSATIONS_FILE)) {
+        const metaStore = JSON.parse(fs.readFileSync(PATHS.META_CONVERSATIONS_FILE, 'utf8'));
+        let foundConv = null;
+        for (const [k, c] of Object.entries(metaStore.chats || {})) {
+          if (String(c.id) === String(conversationId) || k === String(conversationId)) {
+            c.waitingAdvisor = false;
+            c.botActive = false;
+            c.isRead = true;
+            c.unreadCount = 0;
+            if (req.authUser) {
+              c.attendedBy = req.authUser.username;
+              c.attendedByName = `${req.authUser.firstName} ${req.authUser.lastName}`;
+            }
+            foundConv = c;
+            break;
+          }
+        }
+        if (foundConv) {
+          fs.writeFileSync(PATHS.META_CONVERSATIONS_FILE, JSON.stringify(metaStore, null, 2), 'utf8');
+          if (io) {
+            io.emit('meta_conversations_updated', getMetaConversationsAsArray());
+          }
+          return res.json({ success: true, conversation: foundConv });
+        }
+      }
+    } catch (e) {}
+
     res.status(404).json({ error: 'No encontrado' });
+  });
+
+  // Asignar asesor a una conversación (WhatsApp o Meta)
+  router.post('/conversations/assign-advisor', requireAuth, (req, res) => {
+    const { conversationId, advisorUsername } = req.body || {};
+    const users = loadUsers();
+    const advisor = advisorUsername ? users.find(u => u.username === advisorUsername) : null;
+
+    const todayISO = getTodayISO();
+    const now = getNowVE();
+    const conversations = getConversations();
+    const reqId = String(conversationId);
+    let conv = conversations.find(c => String(c.id) === reqId);
+
+    if (conv) {
+      if (advisor) {
+        let advisorDisplayName = 'Asesor';
+        if (advisor.username === 'Jesuse' || advisor.firstName?.toLowerCase().includes('jesus')) {
+          advisorDisplayName = 'Asesor Jesus';
+        } else if (advisor.username === 'rcazorla' || advisor.firstName?.toLowerCase().includes('ricardo')) {
+          advisorDisplayName = 'Asesor Ricardo';
+        } else if (advisor.role === 'admin' || advisor.username === 'admin') {
+          advisorDisplayName = 'Administrador';
+        } else {
+          advisorDisplayName = `Asesor ${advisor.firstName || advisor.username}`.trim();
+        }
+
+        conv.attendedBy = advisor.username;
+        conv.attendedByName = advisorDisplayName;
+        conv.waitingAdvisor = false;
+
+        const comp = conv.company || getCompanyFromChannel(conv.channel);
+        const alreadyAttended = analyticsService.hasAttendedToday(advisor.id, conv.id, advisor.username);
+        if (!alreadyAttended) {
+          analyticsService.recordEvent({
+            date: todayISO,
+            time: now,
+            userId: advisor.id,
+            username: advisor.username,
+            userFullName: advisorDisplayName,
+            type: 'client_attended',
+            company: comp,
+            channel: conv.channel || 'wa_agro',
+            conversationId: conv.id,
+            clientName: conv.name
+          });
+        }
+      } else {
+        conv.attendedBy = null;
+        conv.attendedByName = null;
+      }
+      saveConversations(conversations);
+      io.emit('conversations_updated', conversations);
+      io.emit('analytics_updated');
+      return res.json({ success: true, conversation: conv });
+    }
+
+    // Buscar en Meta (Instagram / Facebook)
+    try {
+      const fs = require('fs');
+      const { PATHS } = require('../config/constants');
+      if (fs.existsSync(PATHS.META_CONVERSATIONS_FILE)) {
+        const metaStore = JSON.parse(fs.readFileSync(PATHS.META_CONVERSATIONS_FILE, 'utf8'));
+        let found = null;
+        for (const [k, c] of Object.entries(metaStore.chats || {})) {
+          if (String(c.id) === reqId || k === reqId) {
+            found = c;
+            break;
+          }
+        }
+        if (found) {
+          if (advisor) {
+            let advisorDisplayName = 'Asesor';
+            if (advisor.username === 'Jesuse' || advisor.firstName?.toLowerCase().includes('jesus')) {
+              advisorDisplayName = 'Asesor Jesus';
+            } else if (advisor.username === 'rcazorla' || advisor.firstName?.toLowerCase().includes('ricardo')) {
+              advisorDisplayName = 'Asesor Ricardo';
+            } else if (advisor.role === 'admin' || advisor.username === 'admin') {
+              advisorDisplayName = 'Administrador';
+            } else {
+              advisorDisplayName = `Asesor ${advisor.firstName || advisor.username}`.trim();
+            }
+
+            found.attendedBy = advisor.username;
+            found.attendedByName = advisorDisplayName;
+            found.waitingAdvisor = false;
+
+            const comp = found.channelKey?.includes('tracto') ? 'Tractopower' : 'Agropower';
+            const alreadyAttended = analyticsService.hasAttendedToday(advisor.id, found.id, advisor.username);
+            if (!alreadyAttended) {
+              analyticsService.recordEvent({
+                date: todayISO,
+                time: analyticsService.getNowTime(),
+                userId: advisor.id,
+                username: advisor.username,
+                userFullName: advisorDisplayName,
+                type: 'client_attended',
+                company: comp,
+                channel: found.channelKey || 'ig_agro',
+                conversationId: found.id,
+                clientName: found.name
+              });
+            }
+          } else {
+            found.attendedBy = null;
+            found.attendedByName = null;
+          }
+          fs.writeFileSync(PATHS.META_CONVERSATIONS_FILE, JSON.stringify(metaStore, null, 2), 'utf8');
+          if (io) {
+            io.emit('meta_conversations_updated', getMetaConversationsAsArray());
+            io.emit('analytics_updated');
+          }
+          return res.json({ success: true, conversation: found });
+        }
+      }
+    } catch (e) {
+      console.error('[AssignAdvisor] Error:', e);
+    }
+
+    return res.status(404).json({ error: 'Conversación no encontrada' });
+  });
+
+  // Marcar conversación como LEÍDA (apagar badge sin leer y poner contador a 0)
+  router.post('/conversations/read/:id', requireAuth, (req, res) => {
+    const id = req.params.id;
+    const conversations = getConversations();
+    const conv = conversations.find(c => String(c.id) === String(id));
+    if (conv) {
+      conv.isRead = true;
+      conv.unreadCount = 0;
+      conv.lastReadAt = getNowVE();
+      if (req.authUser) {
+        conv.lastReadBy = req.authUser.username;
+      }
+      saveConversations(conversations);
+      if (io) {
+        io.emit('conversation_read', { id: conv.id, username: req.authUser?.username });
+      }
+      return res.json({ success: true, id: conv.id });
+    }
+
+    // Buscar si es un chat de Meta (Instagram / Facebook)
+    try {
+      const fs = require('fs');
+      const { PATHS } = require('../config/constants');
+      if (fs.existsSync(PATHS.META_CONVERSATIONS_FILE)) {
+        const metaStore = JSON.parse(fs.readFileSync(PATHS.META_CONVERSATIONS_FILE, 'utf8'));
+        let found = false;
+        for (const [k, c] of Object.entries(metaStore.chats || {})) {
+          if (String(c.id) === String(id) || k === String(id)) {
+            c.isRead = true;
+            c.unreadCount = 0;
+            found = true;
+            break;
+          }
+        }
+        if (found) {
+          fs.writeFileSync(PATHS.META_CONVERSATIONS_FILE, JSON.stringify(metaStore, null, 2), 'utf8');
+          if (io) {
+            io.emit('conversation_read', { id, username: req.authUser?.username });
+          }
+          return res.json({ success: true, id });
+        }
+      }
+    } catch (e) {}
+
+    res.json({ success: true, id });
   });
 
   // Marcar o desmarcar "Cerrar Venta / Venta Cerrada" en una conversación
@@ -353,6 +604,44 @@ function createConversationRouter(io) {
     } catch (err) {
       console.error('[Panel] Error eliminando conversación:', err);
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Exportación Exhaustiva de Conversaciones y Mensajes (Bidireccional) ───
+  router.get('/conversations/export', requireAuth, (req, res) => {
+    try {
+      const format = (req.query.format || 'csv').toLowerCase();
+      if (format === 'json') {
+        const jsonData = exportService.generateJsonExport();
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="export_conversaciones_${Date.now()}.json"`);
+        return res.json(jsonData);
+      }
+
+      const csvData = exportService.generateCsvExport();
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="export_conversaciones_${Date.now()}.csv"`);
+      return res.send(csvData);
+    } catch (err) {
+      console.error('[Export Route] Error exportando conversaciones:', err);
+      res.status(500).json({ error: 'Error al generar la exportación', details: err.message });
+    }
+  });
+
+  router.post('/conversations/generate-export', requireAuth, (req, res) => {
+    try {
+      const result = exportService.saveStaticExports();
+      res.json({
+        success: true,
+        stats: result.stats,
+        downloadUrls: {
+          csv: '/exports/conversaciones_exhaustivas_bidireccionales.csv',
+          json: '/exports/conversaciones_exhaustivas_bidireccionales.json'
+        }
+      });
+    } catch (err) {
+      console.error('[Generate Export Route] Error:', err);
+      res.status(500).json({ error: 'Error generando archivos de exportación', details: err.message });
     }
   });
 

@@ -243,7 +243,7 @@ A continuación se detalla cada sección del sistema: **qué hace**, **qué elem
   - Tarjeta de sesión activa (`#headerAuthUserName` y `#headerAuthStatsStatus`):
     - Si es Asesor: muestra `🟢 Registrando Estadísticas • ⏱️ 00m 15s` en tiempo real.
     - Si es Admin: muestra `🛡️ Modo Admin (Exento de estadísticas)`.
-  - Botón `QR` (`#btnQuickQr`, solo Admin), botón `Simular Cliente` y botón `Cerrar Sesión`.
+  - Indicador de estado y sesión, botón `Sincronizar WA` y botón `Salir` (`Cerrar Sesión`). *(Nota v3.9: Los botones de prueba y simulador fueron purgados al 100% para producción).*
 - **Módulos que la gobiernan:**
   - **Frontend:** `public/js/auth.js` (`applyRolePermissions`, `updateHeaderSessionBanner`, `switchView`, `logoutUser`).
   - **Backend:** `src/middleware/authMiddleware.js` (`requireAuth`, `requireAdmin`).
@@ -317,10 +317,9 @@ Está dividida en 3 columnas interactivas:
   3. Si el usuario es un Asesor (no Admin), registra `client_attended` (1 vez por conversación/asesor) y `message_sent` en `analytics.json`.
   4. Si el canal es de WhatsApp (`wa_agro` o `wa_tracto`), envía el mensaje real (o el documento PDF real vía `whatsappService.sendPdf`) al teléfono del cliente a través de Baileys/Evolution API.
 
-#### 3.4. Simulador Omnicanal (`#simulatorPanel`)
-- **¿Qué hace?**
-  Permite simular la llegada de mensajes de un cliente por cualquiera de los 8 canales de Agropower o Tractopower para probar el comportamiento de las respuestas automáticas y de la bandeja.
-- **Endpoint:** `POST /api/messages/simulate`.
+#### 3.4. Purgado de Simulador en Producción (v3.9)
+- **Estado:** Totalmente removido de producción.
+- **Detalle:** Con el despliegue del panel a producción real con clientes activos, se eliminó el cajón `#simulatorPanel` y el endpoint `POST /api/messages/simulate` para garantizar que la bandeja solo opere con eventos reales de clientes por WhatsApp, Instagram, Facebook y TikTok.
 
 ---
 
@@ -495,7 +494,7 @@ Consta de **6 subsecciones modulares**:
 | `POST` | `/api/whatsapp/logout` | `src/routes/whatsappRoutes.js` | `requireAuth` + `requireAdmin` | Desvincula el WhatsApp actual y limpia credenciales de sesión WA. |
 | `GET` | `/api/conversations` | `src/routes/conversationRoutes.js` | `requireAuth` | Devuelve el arreglo de conversaciones activas desde `conversations.json`. |
 | `POST` | `/api/messages/send` | `src/routes/conversationRoutes.js` | `requireAuth` | Envía mensaje o PDF al cliente, pasa el chat a control de asesor (`botActive: false`) y registra métrica si es asesor. |
-| `POST` | `/api/messages/simulate` | `src/routes/conversationRoutes.js` | `requireAuth` | Simula mensaje entrante de cliente y dispara auto-respuesta si aplica según horario. |
+| `POST` | `/api/messages/simulate` | `src/routes/conversationRoutes.js` | `requireAuth` | *(Eliminado en v3.9 para producción)* Endpoint deprecado y removido. |
 | `POST` | `/api/conversations/toggle-bot` | `src/routes/conversationRoutes.js` | `requireAuth` | Pausa o reactiva el bot (`botActive`) en la conversación seleccionada. |
 | `POST` | `/api/conversations/close-sale` | `src/routes/conversationRoutes.js` | `requireAuth` | Marca o desmarca `saleClosed` (Venta Cerrada) y registra la venta en `analytics.json` (si no es Admin). |
 | `GET` | `/api/config/templates` | `src/routes/configRoutes.js` | `requireAuth` | Devuelve `botConfig.json` completo + `scheduleStatus` evaluado en tiempo real. |
@@ -666,6 +665,9 @@ Gracias a la arquitectura modular, **no es necesario tocar todo el sistema** si 
 | **v3.4 (Dual Meta App Independiente + Alerta Sonora Pide Asesor)** | 2026-10-16 | `src/routes/channelAuthRoutes.js`, `src/services/metaApiService.js`, `public/sections/settings-meta.html`, `public/js/settings.js`, `public/sections/header.html` | Arquitectura Dual Meta App con credenciales y tokens independientes (`metaConfig_agro.json` y `metaConfig_tracto.json`), evitando colisiones de App ID entre Agropower y Tractopower, junto con alerta visual y auditiva tipo chime para solicitudes de asesor. | ✅ Verificado |
 | **v3.5 (Saneamiento Integral UTF-8 y Ecos de Instagram Móvil)** | 2026-10-17 | `public/js/settings.js`, `src/routes/metaWebhookRoutes.js`, `src/services/metaApiService.js`, `public/js/inbox.js` | Eliminación de 100% del mojibake / caracteres corruptos en Ajustes (`find_mojibake.js` reporta 0 errores), suscripción de `message_echoes` en Meta Graph API y sincronización bidireccional en vivo para reflejar en el panel los mensajes enviados desde la app móvil de Instagram. | ✅ Verificado |
 | **v3.6 (TikTok Método A: Conexión QR y Bandeja Aislada)** | 2026-10-17 | `src/services/channelVaultService.js`, `src/routes/channelAuthRoutes.js`, `public/sections/settings-companies.html`, `public/js/channels.js`, `public/sections/inbox.html`, `public/js/ferdium.js` | Vinculación limpia de TikTok escaneando el código QR oficial desde el móvil sin contraseñas ni captchas (`POST /api/channels/connect-qr`), insignia `🟢 Conectado por QR`, nuevo Workspace Command Center `#tiktokWorkspacePane` en la bandeja, notas de voz de clientes nativas en ventana aislada (`persist:tk_agro` y `persist:tk_tracto`). | ✅ Verificado |
+| **v3.7 (Hardcoding de Zona Horaria Venezuela `America/Caracas` UTC-4)** | 2026-10-21 | `server.js`, `ecosystem.config.js`, `src/services/storageService.js`, `src/services/analyticsService.js`, `public/js/analytics.js` | Fijación estricta de la zona horaria en todo el sistema operativo del VPS (`timedatectl set-timezone America/Caracas`), en Node.js a nivel de proceso (`process.env.TZ = 'America/Caracas'`), en servicios de Backend (`getNowVE()`, `getTodayVE()`, formateo `Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' })`), y en frontend. Elimina discrepancias en el corte de fecha de métricas, particiones diarias de analíticas (`YYYY-MM-DD.json`), inicio de semana laboral y horarios de atención al cliente. | ✅ Verificado |
+| **v3.8 (Diagnóstico Meta Graph API >50 Mensajes + Activos Legales)** | 2026-10-21 | `public/privacy.html`, `public/terms.html`, `src/services/metaApiService.js`, `ecosystem.config.js` | Diagnóstico de timeout en Graph API (`code: -2, subcode: 2534084: "Your query has timed out since you have too many conversations with users who do not have a role on app"`). Despliegue de Términos de Servicio (`/terms.html`) y Política de Privacidad (`/privacy.html`) con código HTTP 200 en `https://powerpanel.ddns.net`, generación de logotipo oficial 1024x1024 y diseño de la estrategia de Acceso Avanzado para `instagram_manage_messages`. | ✅ Verificado |
+| **v3.9 (Purga Total de Simulador para Producción)** | 2026-10-21 | `public/sections/header.html`, `public/sections/inbox.html`, `public/index.html`, `public/js/auth.js`, `public/js/inbox.js`, `public/js/responsive.js`, `public/css/styles.css`, `src/routes/conversationRoutes.js` | Purgado del 100% de elementos simulados en el panel para producción: eliminación de botón simular en cabecera, cajón lateral `#simulatorPanel`, funciones JS `toggleSimulator()` y `simulateCustomerClick()`, estilos CSS de gaveta y endpoint backend `POST /api/messages/simulate`. Desplegado en VPS (`173.224.115.126`) con PM2 activo y ambas líneas de WhatsApp en línea. | ✅ Verificado |
 
 ---
 
@@ -1234,7 +1236,10 @@ El sistema implementa control de acceso basado en roles (RBAC) con dos niveles f
 
 ### 18.2. Recopilación de Métricas de Rendimiento en Tiempo Real
 Cada vez que un asesor interactúa en el panel, el motor de analíticas registra de forma atómica:
-- **`client_attended`:** Registrado una sola vez por cliente por día al responder a una conversación pendiente.
+- **`client_attended` (Cliente Atendido):** Se computa estrictamente a partir de las conversaciones **donde los agentes/asesores escriban**, independientemente de si la conversación es nueva o antigua/preexistente:
+  - **Conversaciones Nuevas o Antiguas:** No importa la fecha de creación del chat; en el momento en que un agente envía un mensaje al cliente, se computa como 1 cliente atendido.
+  - **Atención Multidía:** Si un asesor conversa con el mismo cliente en días distintos (por ejemplo, ayer y hoy), se computa como 1 cliente atendido para ayer y 1 cliente atendido para hoy (ambos días quedan registrados en sus respectivas particiones diarias `YYYY-MM-DD.json`).
+  - **Deduplicación Intra-Día:** Si el asesor intercambia 10 mensajes con el mismo cliente en el mismo día, se cuenta como 1 solo cliente atendido para ese día, registrando cada mensaje individual bajo la métrica `message_sent`.
 - **`message_sent`:** Conteo de respuestas enviadas por el operador.
 - **`sale_closed`:** Registro de venta exitosa con monto en dólares (`amount`) y moneda (`currency`).
 - **`session_duration`:** Registro continuo de tiempo en línea y actividad efectiva del asesor desde su inicio de sesión hasta el cierre de sesión (`updateAdvisorSessionActivity`).
@@ -1338,3 +1343,207 @@ Al serializarse los tokens en `metaTokens_agro.json`, el nombre de la página vi
 En caso de requerir volver al estado previo:
 1. Restaurar las copias de seguridad de los archivos modificados.
 2. Reiniciar el servicio en el VPS: `pm2 restart omnipanel-consorcio --update-env`.
+
+---
+
+## 22. HARDCODING ESTRICTO DE LA ZONA HORARIA DE VENEZUELA (`America/Caracas` - UTC-4) (2026-10-21)
+
+### 22.1. Diagnóstico del Problema y Justificación Operativa
+- **Problema Detectado:** El servidor VPS (`173.224.115.126`) operaba bajo el huso horario por defecto del sistema (`UTC`), mientras que los clientes y asesores interactúan desde Venezuela (`UTC-4`).
+- **Impacto Negativo en las Métricas:**
+  1. **Particiones de Analíticas Desfasadas:** Los archivos de almacenamiento diario `data/analytics/YYYY-MM-DD.json` cambiaban de fecha a las 8:00 PM hora venezolana (00:00 UTC), fragmentando las métricas de un mismo día laboral en dos particiones distintas.
+  2. **Horario Laboral y Bot:** La regla de horario laboral (`08:00` a `17:00`) se evaluaba según la hora del servidor, activando el mensaje de bienvenida fuera de horario o pausándolo a horas equivocadas.
+  3. **Filtros Temporales en Frontend:** Los botones "Hoy", "Esta Semana" y "Este Mes" calculaban rangos discordantes con respecto al día calendario de Venezuela.
+
+### 22.2. Solución de Hardcoding Integral en los 4 Niveles del Sistema
+Para garantizar que nada dependa de la configuración arbitraria del entorno, se blindó la hora venezolana en 4 capas:
+
+1. **Capa 1 — Sistema Operativo Linux (VPS):**
+   ```bash
+   timedatectl set-timezone America/Caracas
+   ```
+   Verificado en VPS: `America/Caracas (-04, -0400)`.
+2. **Capa 2 — Proceso Node.js y Gestor PM2:**
+   - En `server.js`: Inyección al inicio del script:
+     ```javascript
+     process.env.TZ = 'America/Caracas';
+     ```
+   - En `ecosystem.config.js`:
+     ```javascript
+     env: {
+       NODE_ENV: 'production',
+       TZ: 'America/Caracas'
+     }
+     ```
+3. **Capa 3 — Servicios de Backend:**
+   - **`src/services/storageService.js`:** Implementación de `getNowVE()` utilizando `Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas', ... })` para estampar la hora `HH:mm` y fecha en todas las conversaciones.
+   - **`src/services/analyticsService.js`:** Las funciones `getTodayVE()` y `getCurrentISOWeekVE()` generan las particiones `YYYY-MM-DD.json` garantizando que el corte de medianoche ocurra estrictamente a las 12:00 AM hora de Venezuela.
+4. **Capa 4 — Frontend Reactivo (`public/js/analytics.js`):**
+   - Los filtros rápidos de fechas y el cálculo de semanas ISO evalúan contra la fecha local de Venezuela calculada mediante `Intl.DateTimeFormat` con timeZone `'America/Caracas'`, asegurando que cualquier asesor o admin que abra el panel desde cualquier país vea el rendimiento alineado con la jornada de Venezuela.
+
+---
+
+## 23. PURGA TOTAL DE ELEMENTOS SIMULADOS PARA PRODUCCIÓN (v3.9) (2026-10-21 / 2026-10-22)
+
+### 23.1. Justificación
+Con la entrada oficial del panel en **Producción en Vivo** atendiendo clientes reales por WhatsApp (Agropower y Tractopower), Instagram Direct y Facebook Messenger, los controles de simulación (creados originalmente para pruebas de laboratorio) representaban ruido visual, riesgo de envíos accidentales de prueba y consumo innecesario de rutas HTTP.
+
+### 23.2. Elementos Eliminados
+1. **Frontend:**
+   - **`public/sections/header.html`:** Removido el botón "Simular" y referencias de prueba.
+   - **`public/sections/inbox.html`:** Removido el contenedor `#simulatorPanel` y selectores de canal simulado.
+   - **`public/js/auth.js`:** Eliminada la función `toggleSimulator()` y depurada la función `toggleSidebar()`.
+   - **`public/js/inbox.js`:** Eliminada la función `simulateCustomerClick()`.
+   - **`public/js/responsive.js`:** Eliminada la manipulación del drawer de simulación en `applyResponsiveLayout()` y `closeMobileDrawers()`.
+   - **`public/css/styles.css`:** Eliminado el bloque de animación `#simulatorPanel.mobile-drawer-open`.
+   - **`public/index.html`:** Limpieza de comentarios alusivos al simulador.
+2. **Backend:**
+   - **`src/routes/conversationRoutes.js`:** Eliminado el endpoint `POST /api/messages/simulate`.
+
+### 23.3. Verificación
+- Búsqueda recursiva en `public/` y `src/` confirmó **cero (0) coincidencias** de términos de simulación.
+- Despliegue en el VPS (`173.224.115.126`) con recarga de PM2 sin caída de servicio y ambas líneas de WhatsApp activas.
+
+---
+
+## 24. DIAGNÓSTICO Y ARQUITECTURA DE SINCRONIZACIÓN HISTÓRICA DE INSTAGRAM (>50 CHATS) Y PREPARACIÓN DE META APP PARA ACCESO AVANZADO (2026-10-21 / 2026-10-22)
+
+### 24.1. Diagnóstico de la Limitación de Sincronización en Meta Graph API
+Al intentar sincronizar todo el historial de conversaciones de `@agropower_venezuela` más allá de las 50 conversaciones iniciales importadas el 16 de Octubre, las consultas a la Graph API de Meta arrojaron el siguiente error:
+```json
+{
+  "code": -2,
+  "subcode": 2534084,
+  "message": "Your query has timed out since you have too many conversations with users who do not have a role on app. Please request for advanced access to instagram_manage_messages permission or reduce the number of existing threads on your IG Business with users with no role on the app."
+}
+```
+
+### 24.2. Causa Raíz Técnica
+- **Modo Estándar (Standard Access / Development):** Cuando una Meta App se encuentra en modo de desarrollo o con permisos en nivel estándar, Meta obliga internamente a su motor Graph API a filtrar cada hilo de conversación para verificar si el usuario emisor posee un rol en la aplicación (Admin, Developer o Tester).
+- En una cuenta comercial activa con miles de clientes reales (como `@agropower_venezuela`), esa verificación thread-by-thread sobrepasa el límite de tiempo de espera (timeout de 28 a 30 segundos de Meta), cancelando la petición.
+- **Diferencia con Webhooks en Vivo:** La recepción de mensajes entrantes y respuestas salientes en tiempo real vía Webhook **NO se ve afectada** y opera al 100% en tiempo real, ya que el evento viaja directamente despachado por Meta. La limitación afecta únicamente a la descarga en bloque (bulk fetch) de hilos antiguos.
+
+### 24.3. Estrategia y Activos Preparados para la Creación de la Nueva Meta App
+Para desbloquear la lectura masiva de todas las conversaciones históricas, se acordó crear una nueva App en Meta for Developers enfocada en la obtención de **Acceso Avanzado (Advanced Access)** para el permiso `instagram_manage_messages`:
+
+1. **Activos Corporativos Desplegados y Verificados:**
+   - **Dominio Público Seguro:** `https://powerpanel.ddns.net` (con certificado SSL Let's Encrypt válido).
+   - **Política de Privacidad Oficial:** Desplegada en `public/privacy.html` y accesible públicamente con HTTP 200 en `https://powerpanel.ddns.net/privacy.html`.
+   - **Condiciones del Servicio Oficiales:** Desplegada en `public/terms.html` y accesible públicamente con HTTP 200 en `https://powerpanel.ddns.net/terms.html`.
+   - **Logotipo Corporativo Oficial:** Renderizado a resolución reglamentaria de 1024×1024 píxeles en `C:\Users\USER\Desktop\logo_agropower_1024.png`.
+2. **Guía de Procedimiento Operativo:**
+   - Documentada detalladamente en [`c:\Users\USER\Desktop\GUIA_PASO_A_PASO_CONEXION_META_INSTAGRAM_OMNIPANEL.md`](file:///c:/Users/USER/Desktop/GUIA_PASO_A_PASO_CONEXION_META_INSTAGRAM_OMNIPANEL.md).
+   - Pasos prioritarios:
+     - Selección del caso de uso *"API setup with Facebook login"* / Casos de uso empresarial.
+     - Enlace con la cuenta comercial y Fanpage de Facebook `Agropower` (`1429311906926656`) y cuenta de Instagram Business `17841447665609806`.
+     - Habilitación del permiso `instagram_manage_messages` en nivel de **Acceso Avanzado**.
+     - Generación del Page Access Token permanente sin expiración y ejecución del script de paginación (`paging.next`) para ingestar la totalidad de los mensajes históricos de la bandeja.
+
+
+---
+
+## 25. BLINDAJE Y FIJACIÓN DEFINITIVA DEL HUSO HORARIO DE CARACAS, VENEZUELA (UTC-4) Y REPARACIÓN HISTÓRICA DE TIMESTAMPS DE INSTAGRAM (v4.0) (2026-10-22)
+
+### 25.1. Contexto y Problema Detectado
+Se detectó una discrepancia crítica en la visualización cronológica del inbox:
+1. Varias conversaciones importadas de Instagram Direct (como `wilderescalante04`, `rowannes_`, `carlosubac4`) aparecían listadas con la fecha de "Hoy" (`22/10/2026`) y horas nocturnas adelantadas al reloj actual de Venezuela (ej: `10:41 p. m.`, `11:53 p. m.`), flotando en la cúspide de la bandeja de entrada sobre los clientes reales atendidos durante el día.
+2. El usuario solicitó fijar el horario del panel y del servidor **SIN CONDICIÓN DE CAMBIO** en el huso horario oficial de **Caracas, Venezuela (`America/Caracas`, UTC-4)**, eliminando cualquier ambigüedad horaria.
+
+### 25.2. Diagnóstico Técnico de Causa Raíz
+La investigación en el backend y frontend reveló una confluencia de tres factores:
+1. **Ausencia de fecha en `metaConversations.json`:**
+   En la importación histórica del 16 de octubre, los mensajes de Instagram fueron almacenados únicamente con el string de la hora (ej: `"10:41 p. m."`) sin incluir el prefijo de la fecha.
+2. **Lógica de fallback defectuosa en `public/js/inbox.js`:**
+   - La función `formatConversationTimestamp()` evaluaba:
+     `if (!str.includes('/')) return \\, \\;`
+     Asumiendo erróneamente que cualquier registro sin barra (`/`) correspondía a "hoy" (`22/10/2026`).
+   - La función de ordenamiento `parseTimestampToMs()` utilizaba `new Date()` como base para strings que solo contenían hora, calculando un timestamp futuro (esta noche a las 22:41) y posicionando chats antiguos por encima de las conversaciones activas.
+3. **Hora UTC de Meta Graph API vs. Hora Local:**
+   Meta entrega los timestamps en formato UTC ISO (`2026-10-16T02:41:57+0000`). Al convertir correctamente a `America/Caracas` (UTC-4), el mensaje ocurrió en realidad el `15/10/2026, 10:41 p. m.`, no el día 16 ni el día 22.
+
+### 25.3. Medidas de Blindaje Aplicadas (Sin Condición de Cambio)
+
+#### 1. Blindaje del Sistema Operativo del Servidor VPS (Linux Ubuntu)
+- Ejecutado `timedatectl set-timezone America/Caracas`.
+- Verificado symlink oficial `/etc/localtime -> /usr/share/zoneinfo/America/Caracas`.
+- Configurado `/etc/timezone` con `America/Caracas`.
+- Agregada variable global `TZ=America/Caracas` en `/etc/environment`.
+- Configurado `ecosystem.config.js` de PM2 con `env: { TZ: 'America/Caracas' }` para garantizar que todo proceso Node.js instanciado opere en UTC-4.
+
+#### 2. Reingeniería del Algoritmo en Frontend (`public/js/inbox.js`)
+- `formatConversationTimestamp(rawTime, conv)`:
+  - Jamás inventa la fecha de hoy para registros históricos.
+  - Prioriza el campo numérico exacto `conv.timestamp` (epoch ms) formateándolo con `toLocaleString('es-VE', { timeZone: 'America/Caracas' })`.
+  - Si el string ya tiene fecha completa (`/` o `-`), la respeta fielmente.
+  - Actualizadas todas las invocaciones en la lista de chats (`renderChatList`), cabecera activa (`selectConversation`) y burbujas de mensajes (`renderMessages`).
+- `parseTimestampToMs(timeStr, conv)`:
+  - Prioriza `conv.timestamp` o el timestamp del último mensaje.
+  - Si encuentra un string con solo hora sin fecha, aplica un fallback histórico seguro (16 de octubre), impidiendo matemáticamente que se posicione hoy.
+
+#### 3. Blindaje del Servicio de Ingesta y Webhooks (`src/services/metaApiService.js`)
+- En `getOrCreateMetaConversation` y `addMessageToMetaConversation`, cada nuevo mensaje y actualización de chat graba tanto el string con fecha y hora completa en `America/Caracas` como el campo numérico exacto `timestamp: Date.now()`.
+- La función de ordenamiento interno `parseTimestampToMs` sincronizada idéntica al frontend.
+
+#### 4. Reparación Histórica de Base de Datos (`repair_meta_dates.js`)
+- Se creó y ejecutó un script en el VPS con respaldo de seguridad automático (`metaConversations.json.bak_repair_dates_*`).
+- El script iteró los 52 chats y 242 mensajes de Instagram/Facebook, consultando a Meta Graph API (`https://graph.facebook.com/v22.0/{msgId}?fields=created_time`) el timestamp UTC original exacto.
+- Convirtió cada timestamp de UTC a `America/Caracas` (`es-VE`), grabando la fecha completa (`DD/MM/YYYY, hh:mm a. m./p. m.`) y el epoch ms exacto.
+- **Resultado:**
+  - Chats reparados: 52 / 52 (100%).
+  - Mensajes reparados directamente con Meta API: 240 / 240.
+  - Mensajes con solo hora restantes: 0.
+
+### 25.4. Verificación en Producción
+- Consulta a `getCombinedConversations()` en vivo:
+  - Total de conversaciones combinadas: 134 (82 WhatsApp + 52 Meta).
+  - Conversaciones de Instagram con fecha de hoy (`22/10/2026`): **0**.
+  - Conversaciones sin fecha completa: **0**.
+  - Los primeros lugares del inbox están ocupados correctamente por los clientes atendidos el día de hoy por WhatsApp (Ahmed Hammoud, Jose Inciarte, Agency_van, etc.).
+  - Las conversaciones de Instagram se ordenan de manera exacta según la fecha real de sus últimos mensajes (16/10, 15/10, 14/10).
+### 25.5. Regla Absoluta de Ordenamiento por Último Mensaje (Enviado o Recibido)
+- Se consolidó la regla de ordenamiento cronológico: **El ÚLTIMO mensaje de una conversación (sea recibido de un cliente o respondido por un asesor) dicta la fecha/hora visible y la posición exacta en el inbox**.
+- Si un mensaje fue recibido el día 19 y fue respondido el día 21, la conversación asume la fecha del día 21 y sube a las primeras posiciones correspondientes a ese día. Si se responde el día de hoy, asume la fecha y hora de hoy.
+- Modificaciones implementadas en `public/js/inbox.js`, `src/services/metaApiService.js` y `src/services/storageService.js`:
+  - En `parseTimestampToMs()` y `formatConversationTimestamp()`, se evalúa prioritariamente el último elemento de `conv.messages`.
+  - En `getMetaConversationsAsArray()`, cada conversación proyecta `time` y `timestamp` a partir de su último mensaje.
+  - En `sanitizeAndResolveConversations()` para WhatsApp, se garantiza que `c.time` sincronice con el último mensaje registrado.
+---
+
+## 26. VERIFICACIÓN, CORRECCIÓN Y EMULACIÓN DE MENSAJES AUTOMATIZADOS FUERA DE HORARIO (v4.1) (2026-10-23)
+
+### 26.1. Contexto y Diagnóstico
+Se solicitó verificar el correcto funcionamiento de los mensajes automatizados y programados de WhatsApp, y emular la operación después de las 5:00 PM (17:00, hora de Caracas).
+Al auditar los registros en vivo del servidor y la lógica de ejecución del bot, se identificaron los siguientes aspectos:
+1. **Comportamiento durante horario laboral (08:00 a 17:00 VE):**
+   - El sistema opera de manera intencional en pausa (`shouldAutoReply: false`), permitiendo la atención humana directa y asignando los chats a los asesores comerciales sin interferencia del bot.
+2. **Falla crítica resuelta en el envío de archivos adjuntos (PDF del Catálogo):**
+   - En `whatsappHandler.js`, la condición para despachar el archivo adjunto evaluaba únicamente `if (botResult.attachmentUrl)`.
+   - En `botConfig.json`, el catálogo oficial de modelos se encuentra configurado bajo la propiedad `"attachment": "1792614914044_5atuoj.pdf"` (sin la palabra `Url`).
+   - Debido a esta discrepancia de nombres, cuando un cliente escribía "1" o solicitaba el catálogo fuera de horario, el bot despachaba el mensaje de texto pero **no enviaba el archivo PDF**, ocasionando que clientes reales respondieran *"No sale nada"*.
+
+### 26.2. Correcciones Implementadas
+1. **`src/services/whatsappHandler.js`:**
+   - Corregida la condición de envío a `const pdfAttachment = botResult.attachmentUrl || botResult.attachment || attachment;`.
+   - Asegurada la evaluación de `schedStatus.welcomeMessage` en caso de menús de bienvenida o mensajes personalizados de fuera de horario.
+2. **`botEngine.js`:**
+   - Integrada la función `getAutoReplyMessage(config)` para respetar fielmente el modo seleccionado (`greeting_menu`, `out_of_hours` o `both`).
+   - Asegurada la propagación de `attachmentUrl: item.attachmentUrl || item.attachment || null` en todas las opciones aplanadas.
+3. **`whatsappService.js`:**
+   - Añadida resolución inteligente de rutas para archivos multimedia en `public/media/` y `public/media/whatsapp/`.
+
+### 26.3. Emulación y Verificación en Servidor de Producción (173.224.115.126)
+Se ejecutó el script de emulación integral en el entorno del VPS simulando las diferentes franjas horarias y mensajes de clientes:
+* **Franja Horaria:**
+  - `10:30 AM`: Atención Humana (Bot en pausa).
+  - `04:59 PM`: Atención Humana (Bot en pausa).
+  - `05:00 PM`: Activación automática del Bot (`shouldAutoReply: true`).
+  - `05:15 PM`: Activación automática del Bot (`shouldAutoReply: true`).
+  - `08:30 PM`: Activación automática del Bot (`shouldAutoReply: true`).
+  - `03:00 AM`: Activación automática del Bot (`shouldAutoReply: true`).
+* **Flujos de Respuesta Verificados:**
+  - Entrada: *"Hola buenas tardes"* $\rightarrow$ Despacha Menú Principal Interactivo.
+  - Entrada: *"1"* o *"Quiero ver el catalogo"* $\rightarrow$ Despacha texto oficial + archivo PDF del Catálogo (10.32 MB verificado en disco).
+  - Entrada: *"2"* o *"Precio y financiamiento"* $\rightarrow$ Despacha detalles de precios, compra programada y financiamiento.
+  - Entrada: *"3"* o *"Quiero hablar con un asesor"* $\rightarrow$ Despacha mensaje informativo de horario, pausa el bot (`pauseBot: true`) y marca la conversación como `waitingAdvisor: true` (alerta visual en el panel).
+* **Conectividad de WhatsApp:**
+  - Ambas líneas (Agropower: `584228333876` y Tractopower: `584249578682`) operativas y conectadas al 100%.

@@ -131,8 +131,8 @@ function getDisplayPhoneForChat(c) {
 }
 
 /**
- * Formatea la fecha y hora de la conversación (ej: "20/10/2026, 08:30 p. m.")
- * Si el registro previo solo tiene la hora, le añade la fecha para seguimiento completo.
+ * Formatea la fecha y hora de la conversación respetando siempre el horario oficial de Venezuela.
+ * Si ya contiene la fecha completa, la retorna directamente.
  */
 function formatConversationTimestamp(rawTime) {
   if (!rawTime) return '';
@@ -141,34 +141,30 @@ function formatConversationTimestamp(rawTime) {
   if (str.includes('/') || (str.includes('-') && str.length > 8)) {
     return str;
   }
-  // Si solo tiene la hora (ej: "08:13 p. m."), agregar la fecha de hoy en formato dd/mm/yyyy
-  const today = new Date().toLocaleDateString('es-VE', {
-    timeZone: 'America/Caracas',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  });
-  return `${today}, ${str}`;
+  return str;
 }
 
 /**
  * Convierte un string de fecha/hora de cualquier canal (WhatsApp, Instagram, TikTok, Facebook)
  * a milisegundos para ordenar estrictamente de más nueva a más vieja.
- * Soporta formatos:
- * - "20/10/2026, 08:30 p. m." o "20/10/2026, 10:20 PM"
- * - "20/10/2026, 20:30"
- * - "2026-10-20T18:44:26Z"
- * - "20/10/2026"
- * - "10:55 a. m." o "08:31 p. m." (solo hora)
- * - Fallback automático al último mensaje o al id de la conversación
+ * Prioriza el timestamp real de la conversación si está disponible.
  * @param {string} timeStr
  * @param {Object} [conv]
  * @returns {number}
  */
 function parseTimestampToMs(timeStr, conv) {
-  if (!timeStr && conv && Array.isArray(conv.messages) && conv.messages.length > 0) {
+  if (conv && conv.timestamp && typeof conv.timestamp === 'number' && conv.timestamp > 1500000000000) {
+    return conv.timestamp;
+  }
+
+  if (conv && Array.isArray(conv.messages) && conv.messages.length > 0) {
     const lastMsg = conv.messages[conv.messages.length - 1];
-    timeStr = lastMsg ? lastMsg.time : null;
+    if (lastMsg && lastMsg.timestamp && typeof lastMsg.timestamp === 'number' && lastMsg.timestamp > 1500000000000) {
+      return lastMsg.timestamp;
+    }
+    if (!timeStr) {
+      timeStr = lastMsg ? lastMsg.time : null;
+    }
   }
 
   if (!timeStr) {
@@ -225,6 +221,7 @@ function parseTimestampToMs(timeStr, conv) {
   }
 
   // Caso 4: Solo hora (ej: "10:55 a. m." o "08:31 p. m.")
+  // NO asumir 'hoy' si no hay fecha, para evitar que chats antiguos salten arriba
   const timeOnlyMatch = cleanStr.match(/^(\d+):(\d+)(?::(\d+))?\s*(a\.?\s*m\.?|p\.?\s*m\.?|am|pm)?$/i);
   if (timeOnlyMatch) {
     let h = parseInt(timeOnlyMatch[1], 10);
@@ -234,12 +231,12 @@ function parseTimestampToMs(timeStr, conv) {
     if (ampm.startsWith('p') && h < 12) h += 12;
     if (ampm.startsWith('a') && h === 12) h = 0;
 
-    let baseDate = new Date();
     if (conv && typeof conv.id === 'number' && conv.id > 1700000000000) {
-      baseDate = new Date(conv.id);
+      const baseDate = new Date(conv.id);
+      const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), h, m, s);
+      if (!isNaN(d.getTime())) return d.getTime();
     }
-    const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), h, m, s);
-    if (!isNaN(d.getTime())) return d.getTime();
+    return 0;
   }
 
   const fallback = new Date(cleanStr);
@@ -260,6 +257,80 @@ function sortConversationsDesc(convArray) {
   });
 }
 
+/**
+ * Obtiene el nombre a mostrar en el panel para una conversación:
+ * - Si el cliente tiene un nombre registrado en WhatsApp (pushName), muestra ese nombre real.
+ * - En su defecto:
+ *   - Si el chat pertenece a Tractopower -> 'TractoPower'
+ *   - Si el chat pertenece a Agropower -> 'Agropower'
+ * NUNCA muestra 'Agropower' en conversaciones de Tractopower.
+ */
+function getChatDisplayName(c) {
+  if (!c) return 'Contacto';
+
+  if (c.platform === 'instagram' || c.channel === 'ig_agro' || c.channel === 'ig_tracto') {
+    const raw = (c.name || '').trim();
+    if (raw && !raw.startsWith('Usuario Instagram')) {
+      return raw.startsWith('@') ? raw : `@${raw}`;
+    }
+    return 'Usuario Instagram';
+  }
+  if (c.platform === 'facebook' || c.channel === 'fb_agro' || c.channel === 'fb_tracto') {
+    return c.name || 'Usuario Facebook';
+  }
+
+  const isTracto = c.channel === 'wa_tracto' || c.company === 'Tractopower' || c.channelKey === 'wa_tracto';
+  const defaultCompanyName = isTracto ? 'TractoPower' : 'Agropower';
+
+  const rawName = (c.name || '').trim();
+  const digitsName = rawName.replace(/\D/g, '');
+  const isPhoneOnly = digitsName.length >= 7 && (rawName.startsWith('+') || rawName === c.phone || rawName === c.formattedPhone || rawName.startsWith('58'));
+  const isGeneric = !rawName || 
+                    rawName === 'Contacto WhatsApp' || 
+                    rawName === 'Sin número' || 
+                    rawName === '.' || 
+                    rawName === '-' ||
+                    rawName.toLowerCase() === 'agropower' ||
+                    rawName.toLowerCase() === 'tractopower';
+
+  // Si tiene un nombre real de cliente en WhatsApp (ej. "Jesús D", "Maria Eugenia Maldonado Z", "Alis")
+  if (!isPhoneOnly && !isGeneric) {
+    return rawName;
+  }
+
+  // En su defecto:
+  return defaultCompanyName;
+}
+
+/**
+ * Obtiene las iniciales para el avatar del chat:
+ * - Si el cliente tiene nombre propio, usa sus iniciales (ej. "ME", "JD")
+ * - En su defecto: 'TR' para Tractopower, 'AG' para Agropower
+ */
+function getChatAvatarInitials(c) {
+  if (!c) return 'WA';
+  const isTracto = c.channel === 'wa_tracto' || c.company === 'Tractopower' || c.channelKey === 'wa_tracto';
+  const defaultInitials = isTracto ? 'TR' : 'AG';
+
+  const rawName = (c.name || '').trim();
+  const digitsName = rawName.replace(/\D/g, '');
+  const isPhoneOnly = digitsName.length >= 7 && (rawName.startsWith('+') || rawName === c.phone || rawName === c.formattedPhone || rawName.startsWith('58'));
+  const isGeneric = !rawName || 
+                    rawName === 'Contacto WhatsApp' || 
+                    rawName === 'Sin número' || 
+                    rawName === '.' || 
+                    rawName === '-' ||
+                    rawName.toLowerCase() === 'agropower' ||
+                    rawName.toLowerCase() === 'tractopower';
+
+  if (!isPhoneOnly && !isGeneric) {
+    const letters = rawName.replace(/[^a-zA-Z0-9]/g, '');
+    return letters.substring(0, 2).toUpperCase() || defaultInitials;
+  }
+
+  return defaultInitials;
+}
+
 function renderChatList() {
   const container = document.getElementById('chatListContainer');
   const search = document.getElementById('searchInput').value.toLowerCase();
@@ -271,6 +342,8 @@ function renderChatList() {
   conversations.forEach(c => {
     const meta = channelMeta[c.channel] || channelMeta['wa_agro'];
     const displayPhone = getDisplayPhoneForChat(c);
+    const chatTitle = getChatDisplayName(c);
+    const chatInitials = getChatAvatarInitials(c);
 
     if (currentFilter === 'company_agro' && meta.company !== 'agropower') return;
     if (currentFilter === 'company_tracto' && meta.company !== 'tractopower') return;
@@ -286,6 +359,7 @@ function renderChatList() {
     const lastMsg = c.messages[c.messages.length - 1];
     if (
       search &&
+      !chatTitle.toLowerCase().includes(search) &&
       !c.name.toLowerCase().includes(search) &&
       !String(c.phone || '').toLowerCase().includes(search) &&
       !displayPhone.toLowerCase().includes(search) &&
@@ -298,8 +372,23 @@ function renderChatList() {
     const isSelected = String(c.id) === String(activeChatId);
     const isAdmin = authenticatedUser && (authenticatedUser.isAdmin || authenticatedUser.role === 'admin' || String(authenticatedUser.username).toLowerCase() === 'admin');
 
+    // Identificar si la conversación está sin leer (al estilo WhatsApp)
+    const isUnread = !isSelected && (
+      (typeof c.unreadCount === 'number' && c.unreadCount > 0) ||
+      c.isRead === false ||
+      c.waitingAdvisor === true ||
+      (lastMsg && (lastMsg.sender === 'client' || lastMsg.from === 'client') && c.isRead !== true)
+    );
+    const unreadCountNum = (c.unreadCount && c.unreadCount > 0) ? c.unreadCount : 1;
+
     const item = document.createElement('div');
-    item.className = `relative group transition cursor-pointer ${isSelected ? 'bg-slate-800/90 border-l-4 border-blue-500' : 'hover:bg-slate-800/40'}`;
+    item.className = `relative group transition cursor-pointer ${
+      isSelected
+        ? 'bg-slate-800/90 border-l-4 border-blue-500'
+        : (isUnread
+            ? 'bg-slate-900/95 border-l-4 border-emerald-500 hover:bg-slate-800/60 shadow-sm'
+            : 'hover:bg-slate-800/40')
+    }`;
     item.onclick = (e) => {
       if (e.target.closest('button')) return;
       selectConversation(c.id);
@@ -308,7 +397,7 @@ function renderChatList() {
     // Botón de eliminar (solo admin, aparece al hover)
     const deleteBtn = isAdmin ? `
       <button
-        onclick="event.stopPropagation(); deleteConversation('${c.id}', '${(c.name || '').replace(/'/g, '\\\'')}')"
+        onclick="event.stopPropagation(); deleteConversation('${c.id}', '${(chatTitle || '').replace(/'/g, '\\\'')}')"
         class="absolute top-1.5 right-1.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded-full bg-rose-900/80 hover:bg-rose-600 border border-rose-700 flex items-center justify-center text-[9px] text-rose-300 hover:text-white"
         title="Eliminar conversación del panel">
         <i class="fa-solid fa-xmark"></i>
@@ -317,17 +406,24 @@ function renderChatList() {
     const innerContent = `
       <div class="p-2.5 flex items-start space-x-2.5">
         <div class="relative shrink-0">
-          <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-[10px] text-slate-200">
-            ${c.initials || 'WA'}
+          <div class="w-8 h-8 rounded-full ${isUnread ? 'bg-slate-700 border-2 border-emerald-400 text-white' : 'bg-slate-800 border border-slate-700 text-slate-200'} flex items-center justify-center font-bold text-[10px]">
+            ${chatInitials}
           </div>
           <span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-slate-950 flex items-center justify-center text-[9px]">
             <i class="fa-brands ${meta.icon}"></i>
           </span>
+          ${isUnread ? '<span class="absolute -top-0.5 -left-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-slate-950 shadow animate-pulse" title="Nuevo mensaje sin leer"></span>' : ''}
         </div>
         <div class="flex-1 min-w-0 pr-4">
-          <div class="flex justify-between items-baseline gap-1">
-            <span class="font-bold text-[11px] text-white truncate">${c.name}</span>
-            <span class="text-[9px] text-slate-400 shrink-0 font-mono">${formatConversationTimestamp(c.time)}</span>
+          <div class="flex justify-between items-start gap-1">
+            <span class="${isUnread ? 'font-black text-white' : 'font-bold text-slate-200'} text-[11px] truncate">${chatTitle}</span>
+            <div class="flex flex-col items-end shrink-0 gap-1">
+              <span class="text-[9px] ${isUnread ? 'text-emerald-400 font-bold' : 'text-slate-400 font-mono'}">${formatConversationTimestamp(c.time)}</span>
+              ${isUnread ? `
+                <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-500 text-slate-950 font-black text-[10px] flex items-center justify-center shadow shadow-emerald-500/40 shrink-0" title="Mensaje sin leer">
+                  ${unreadCountNum}
+                </span>` : ''}
+            </div>
           </div>
           ${
             displayPhone
@@ -338,14 +434,15 @@ function renderChatList() {
               : (c.platform === 'instagram'
                   ? `<div class="text-[10px] text-pink-400 font-semibold flex items-center gap-1 mt-0.5">
                        <i class="fa-brands fa-instagram text-[9px]"></i>
-                       <span>@${c.name}</span>
+                       <span>${chatTitle}</span>
                      </div>`
                   : '')
           }
-          <div class="text-[10px] text-slate-400 truncate mt-0.5">${lastMsg ? lastMsg.text.replace(/\n/g, ' ') : ''}</div>
+          <div class="text-[10px] ${isUnread ? 'text-slate-200 font-semibold' : 'text-slate-400'} truncate mt-0.5">${lastMsg ? lastMsg.text.replace(/\n/g, ' ') : ''}</div>
           <div class="flex items-center gap-1 mt-1 flex-wrap">
             <span class="text-[8px] px-1.5 py-0.2 rounded border ${meta.companyBadgeClass} font-bold">${meta.companyName}</span>
             <span class="text-[8px] px-1.5 py-0.2 rounded border ${meta.badgeClass} font-semibold">${meta.label}</span>
+            ${c.attendedByName || c.attendedBy ? `<span class="text-[8px] px-1.5 py-0.2 rounded bg-slate-800 text-blue-300 border border-blue-900 font-semibold" title="Atendido por"><i class="fa-solid fa-user-check text-[7px] mr-0.5"></i>${c.attendedByName || c.attendedBy}</span>` : ''}
             ${c.saleClosed ? '<span class="text-[8px] bg-emerald-500 text-slate-950 font-extrabold px-1.5 py-0.2 rounded">🏆 VENTA CERRADA</span>' : ''}
             ${c.waitingAdvisor ? '<span class="text-[8px] bg-amber-500 text-slate-950 font-extrabold px-1.5 py-0.2 rounded animate-pulse">🔔 PIDE ASESOR</span>' : ''}
           </div>
@@ -367,20 +464,28 @@ function renderChatList() {
 
 function selectConversation(id) {
   activeChatId = id;
+  if (typeof cancelAdvisorFile === 'function') {
+    cancelAdvisorFile();
+  }
   const c = conversations.find(x => String(x.id) === String(id));
   if (!c) return;
 
-  // Marcar conversación como leída y refrescar badges
+  // Marcar conversación como leída inmediatamente y refrescar badges
   c.isRead = true;
   c.unreadCount = 0;
+  fetch('/api/conversations/read/' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).catch(() => {});
   if (typeof renderFerdiumServiceDock === 'function') {
     renderFerdiumServiceDock();
   }
+  renderChatList();
 
   const meta = channelMeta[c.channel] || channelMeta['wa_agro'];
   const displayPhone = getDisplayPhoneForChat(c);
-  document.getElementById('activeAvatar').innerText = c.initials || 'WA';
-  document.getElementById('activeName').innerText = c.name;
+  const chatTitle = getChatDisplayName(c);
+  const chatInitials = getChatAvatarInitials(c);
+
+  document.getElementById('activeAvatar').innerText = chatInitials;
+  document.getElementById('activeName').innerText = chatTitle;
 
   const phoneBadge = document.getElementById('activePhoneBadge');
   if (phoneBadge) {
@@ -390,7 +495,7 @@ function selectConversation(id) {
       phoneBadge.className = 'text-[10px] font-mono px-2 py-0.2 rounded font-bold bg-slate-800 text-emerald-300 border border-emerald-700/60';
     } else if (c.platform === 'instagram') {
       phoneBadge.classList.remove('hidden');
-      phoneBadge.innerText = `📸 @${c.name}`;
+      phoneBadge.innerText = `📸 ${chatTitle}`;
       phoneBadge.className = 'text-[10px] font-mono px-2 py-0.2 rounded font-bold bg-slate-800 text-pink-400 border border-pink-700/60';
     } else if (c.platform === 'facebook') {
       phoneBadge.classList.remove('hidden');
@@ -424,6 +529,20 @@ function selectConversation(id) {
     timeBadge.classList.remove('inline-flex');
   }
 
+  const attendedBadge = document.getElementById('activeAttendedByBadge');
+  const attendedText = document.getElementById('activeAttendedByText');
+  if (attendedBadge && attendedText) {
+    const who = c.attendedByName || c.attendedBy;
+    if (who) {
+      attendedText.innerText = `Atendido por ${who}`;
+      attendedBadge.classList.remove('hidden');
+      attendedBadge.classList.add('inline-flex');
+    } else {
+      attendedBadge.classList.add('hidden');
+      attendedBadge.classList.remove('inline-flex');
+    }
+  }
+
   updateSaleButtonUI(c);
   updateWaitingAdvisorHeaderUI(c);
   renderMessages(c);
@@ -436,14 +555,105 @@ function selectConversation(id) {
 
 function updateWaitingAdvisorHeaderUI(c) {
   const badge = document.getElementById('activeWaitingAdvisorBadge');
-  if (!badge) return;
-  if (c && c.waitingAdvisor) {
-    badge.classList.remove('hidden');
-    badge.classList.add('flex');
-  } else {
-    badge.classList.add('hidden');
-    badge.classList.remove('flex');
+  if (badge) {
+    if (c && c.waitingAdvisor) {
+      badge.classList.remove('hidden');
+      badge.classList.add('flex');
+    } else {
+      badge.classList.add('hidden');
+      badge.classList.remove('flex');
+    }
   }
+
+  const advisorSelect = document.getElementById('activeAdvisorSelect');
+  if (advisorSelect && c) {
+    if (advisorSelect.options.length <= 1) {
+      populateAdvisorSelect().then(() => {
+        advisorSelect.value = c.attendedBy || '';
+      });
+    } else {
+      advisorSelect.value = c.attendedBy || '';
+    }
+  }
+}
+
+async function assignAdvisorToActiveChat(advisorUsername) {
+  if (!activeChatId) return;
+  const activeConv = conversations.find(c => String(c.id) === String(activeChatId));
+  if (!activeConv) return;
+
+  try {
+    const res = await fetch('/api/conversations/assign-advisor', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(typeof getAuthHeadersForChannels === 'function' ? getAuthHeadersForChannels() : {})
+      },
+      body: JSON.stringify({
+        conversationId: activeChatId,
+        advisorUsername: advisorUsername || null
+      })
+    });
+    const data = await res.json();
+    if (data.success && data.conversation) {
+      activeConv.attendedBy = data.conversation.attendedBy;
+      activeConv.attendedByName = data.conversation.attendedByName;
+      activeConv.waitingAdvisor = data.conversation.waitingAdvisor;
+
+      renderMessages(activeConv);
+      renderChatList();
+      updateWaitingAdvisorHeaderUI(activeConv);
+
+      const attendedBadge = document.getElementById('activeAttendedByBadge');
+      const attendedText = document.getElementById('activeAttendedByText');
+      if (attendedBadge && attendedText) {
+        if (activeConv.attendedByName) {
+          attendedText.innerText = `Atendido por ${activeConv.attendedByName}`;
+          attendedBadge.classList.remove('hidden');
+          attendedBadge.classList.add('inline-flex');
+        } else {
+          attendedBadge.classList.add('hidden');
+          attendedBadge.classList.remove('inline-flex');
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[AssignAdvisor] Error asignando asesor:', err);
+  }
+}
+
+async function populateAdvisorSelect() {
+  const select = document.getElementById('activeAdvisorSelect');
+  if (!select) return;
+
+  let advisors = [];
+  try {
+    const res = await fetch('/api/users/advisors', {
+      headers: (typeof getAuthHeadersForChannels === 'function' ? getAuthHeadersForChannels() : {})
+    });
+    if (res.ok) {
+      advisors = await res.json();
+    }
+  } catch (e) {}
+
+  if (!advisors || advisors.length === 0) {
+    advisors = [
+      { username: 'Jesuse', firstName: 'Jesus', lastName: 'Eguis', role: 'operator' },
+      { username: 'rcazorla', firstName: 'Ricardo', lastName: 'Cazorla', role: 'operator' }
+    ];
+  }
+
+  const currentVal = select.value;
+  select.innerHTML = '<option value="">Sin Asignar</option>';
+  advisors.forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u.username;
+    opt.className = 'bg-slate-900 text-blue-200 font-bold';
+    const isAdv = u.role !== 'admin';
+    opt.textContent = isAdv ? `Asesor ${u.firstName}` : `${u.firstName} (${u.role})`;
+    select.appendChild(opt);
+  });
+  if (currentVal) select.value = currentVal;
 }
 
 async function dismissWaitingAdvisor(id) {
@@ -528,7 +738,20 @@ function renderMediaBlock(m) {
 
   const url = m.mediaUrl;
 
-  if (m.mediaType === 'image' || m.mediaType === 'sticker') {
+  if (m.mediaType === 'sticker') {
+    return `
+      <div class="mt-1.5 inline-block">
+        <img src="${url}" alt="${m.mediaLabel || '🎭 Sticker'}"
+          class="max-w-[130px] max-h-[130px] object-contain cursor-pointer hover:scale-105 transition-transform"
+          onclick="window.open('${url}', '_blank')"
+          onerror="this.style.display='none';this.nextSibling.style.display='flex'">
+        <div class="hidden items-center gap-1.5 text-slate-400 text-xs mt-1">
+          <span>🎭 Sticker</span>
+        </div>
+      </div>`;
+  }
+
+  if (m.mediaType === 'image') {
     return `
       <div class="mt-1.5">
         <img src="${url}" alt="${m.mediaLabel || 'Imagen'}"
@@ -604,16 +827,22 @@ function renderMessages(c) {
 
     const mediaHtml = renderMediaBlock(m);
 
-    if (m.sender === 'client') {
+    const isClientMsg = m.from === 'client' || 
+                        m.sender === 'client' || 
+                        (m.sender && m.sender !== 'operator' && m.sender !== 'Agropower' && m.sender !== 'Tractopower' && m.sender !== 'bot' && m.sender !== 'scheduled' && !m.operatorName && !m.operatorUser && m.from !== 'operator');
+
+    if (isClientMsg) {
       div.className = 'flex flex-col items-start max-w-[82%]';
+      const displayText = htmlText || (mediaHtml ? '' : `<span class="italic text-slate-400"><i class="fa-solid fa-paperclip mr-1 text-slate-500"></i>[Contenido multimedia / Archivo compartido]</span>`);
+      const clientHeaderName = getChatDisplayName(c);
       div.innerHTML = `
         <span class="text-[9px] text-slate-400 mb-0.5 flex items-center gap-1.5">
-          <strong class="text-slate-300">${c.name}</strong>
+          <strong class="text-slate-300">${clientHeaderName}</strong>
           ${displayPhone ? `<span class="font-mono text-emerald-400 font-semibold">(${displayPhone})</span>` : ''}
           <span>• ${formatConversationTimestamp(m.time)}</span>
         </span>
         <div class="bg-slate-800 border border-slate-700 text-slate-100 rounded-xl rounded-tl-none p-2.5 text-xs leading-relaxed">
-          ${htmlText}
+          ${displayText}
           ${mediaHtml}
         </div>
       `;
@@ -634,16 +863,111 @@ function renderMessages(c) {
         `;
       }
 
-      const isScheduled = m.sender === 'scheduled';
-      const senderLabel = isScheduled
-        ? '⚡ Mensaje Programado'
-        : `👤 ${m.operatorName || 'Asesor'}`;
+      const isScheduled = m.sender === 'scheduled' || m.origin === 'scheduled';
+      const isWeb = m.origin === 'web' ||
+                    m.operatorUser === 'web' ||
+                    (m.operatorName && (m.operatorName.includes('Web') || m.operatorName.includes('WhatsApp Web')));
+      const isMobile = !isWeb && m.origin !== 'panel' && (
+                        m.origin === 'mobile' || 
+                        m.operatorUser === 'mobile' || 
+                        (m.operatorName && (m.operatorName.includes('Móvil') || m.operatorName.includes('Movil') || m.operatorName.includes('Instagram App'))) || 
+                        (m.text && m.text.includes('(Enviado desde el teléfono físico)'))
+                       );
+
+      const textLower = (m.text || '').toLowerCase();
+      const isGreetingText = textLower.includes('saludos de parte del equipo') ||
+                             textLower.includes('gracias por escribirnos') ||
+                             textLower.includes('cotización de repuestos o maquinaria') ||
+                             textLower.includes('cotizacion de repuestos') ||
+                             textLower.includes('para orientarte mejor, cuéntanos') ||
+                             textLower.includes('para orientarte mejor') ||
+                             textLower.includes('escríbenos tu duda y ya te respondemos') ||
+                             textLower.includes('escribenos tu duda y ya te respondemos') ||
+                             textLower.includes('en un momento un asesor se pondrá en contacto') ||
+                             textLower.includes('en un momento un asesor');
+
+      const isBotMessage = m.sender === 'bot' || 
+                           m.isBot === true ||
+                           m.origin === 'bot' ||
+                           (m.operatorName && (m.operatorName.includes('Bot') || m.operatorName.includes('bot'))) ||
+                           (!isMobile && !isWeb && !m.operatorName && !m.operatorUser && (
+                             isGreetingText ||
+                             ((!m.text || m.text.trim() === '') && (m.sender === 'Agropower' || m.sender === 'Tractopower'))
+                           ));
+
+      let headerTag = '';
+      if (isScheduled) {
+        headerTag = `<span class="inline-flex items-center gap-1 bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-bold shadow-sm"><i class="fa-solid fa-clock text-[9px]"></i><span>Mensaje Programado</span></span>`;
+      } else if (isBotMessage) {
+        headerTag = `<span class="inline-flex items-center gap-1 bg-amber-950/90 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded text-[10px] font-bold shadow-sm"><i class="fa-solid fa-robot text-[9px] text-amber-400"></i><span>Bot Programado</span></span>`;
+      } else if (isWeb) {
+        headerTag = `<span class="inline-flex items-center gap-1 bg-teal-950/90 border border-teal-500/50 text-teal-200 px-2 py-0.5 rounded text-[10px] font-bold shadow-sm" title="Mensaje enviado desde WhatsApp Web"><i class="fa-solid fa-laptop text-[9px] text-teal-400"></i><span>💻 Web</span></span>`;
+      } else if (isMobile) {
+        headerTag = `<span class="inline-flex items-center gap-1 bg-purple-950/90 border border-purple-500/50 text-purple-200 px-2 py-0.5 rounded text-[10px] font-bold shadow-sm" title="Mensaje enviado desde el teléfono móvil"><i class="fa-solid fa-mobile-screen text-[9px] text-purple-400"></i><span>📱 Móvil</span></span>`;
+      } else {
+        // Mensaje con remitente fijo e inmutable del panel (Administrador / Asesor Jesus / Asesor Ricardo)
+        let displayName = 'Asesor';
+        const raw = (m.operatorName || m.operatorUser || '').trim();
+        const rawLower = raw.toLowerCase();
+
+        if (rawLower.includes('jesus') || m.operatorUser === 'Jesuse') {
+          displayName = 'Asesor Jesus';
+        } else if (rawLower.includes('ricardo') || m.operatorUser === 'rcazorla') {
+          displayName = 'Asesor Ricardo';
+        } else if (rawLower.includes('admin') || m.operatorUser === 'admin') {
+          displayName = 'Administrador';
+        } else if (rawLower.includes('web') || m.origin === 'web' || m.operatorUser === 'web') {
+          displayName = '💻 Web';
+        } else if (rawLower.includes('móvil') || rawLower.includes('movil') || m.origin === 'mobile' || m.operatorUser === 'mobile') {
+          displayName = '📱 Móvil';
+        } else if (raw) {
+          displayName = raw.startsWith('Asesor') ? raw : `Asesor ${raw}`;
+        } else if (m.sender === 'Agropower' || m.sender === 'Tractopower') {
+          displayName = '📱 Móvil / Cuenta';
+        }
+
+        const isAdm = displayName.includes('Admin');
+        const isRic = displayName.includes('Ricardo');
+        const isJes = displayName.includes('Jesus');
+        const isWebBadge = displayName.includes('Web');
+        const isMob = displayName.includes('Móvil');
+
+        const badgeColor = isAdm 
+          ? 'bg-slate-900/90 border-emerald-500/50 text-emerald-200' 
+          : isRic 
+          ? 'bg-indigo-950/90 border-indigo-400/50 text-indigo-200'
+          : isJes
+          ? 'bg-blue-950/90 border-blue-400/50 text-blue-200'
+          : isWebBadge
+          ? 'bg-teal-950/90 border-teal-500/50 text-teal-200'
+          : isMob
+          ? 'bg-purple-950/90 border-purple-500/50 text-purple-200'
+          : 'bg-slate-900/90 border-slate-500/50 text-slate-200';
+
+        const icon = isAdm 
+          ? 'fa-shield-halved text-emerald-400' 
+          : isWebBadge
+          ? 'fa-laptop text-teal-400'
+          : isMob 
+          ? 'fa-mobile-screen text-purple-400' 
+          : 'fa-user-tie text-blue-400';
+
+        headerTag = `<span class="inline-flex items-center gap-1 ${badgeColor} border px-2 py-0.5 rounded text-[10px] font-bold shadow-sm"><i class="fa-solid ${icon} text-[9px]"></i><span>${displayName}</span></span>`;
+      }
+
+      let cleanHtmlText = htmlText || '';
+      if (cleanHtmlText) {
+        cleanHtmlText = cleanHtmlText.replace(/\(Enviado desde el teléfono físico\)/gi, '').trim();
+      }
+      const opDisplayText = cleanHtmlText || `<span class="italic text-slate-300/70"><i class="fa-solid fa-image mr-1"></i>[Imagen / Contenido enviado]</span>`;
+
       div.innerHTML = `
-        <span class="text-[9px] ${isScheduled ? 'text-emerald-400' : 'text-blue-400'} mb-0.5 flex items-center gap-1">
-          <span>${senderLabel} • ${formatConversationTimestamp(m.time)}</span>
-        </span>
+        <div class="flex items-center gap-1.5 mb-1 justify-end">
+          ${headerTag}
+          <span class="text-[9px] text-slate-400 font-mono">${formatConversationTimestamp(m.time)}</span>
+        </div>
         <div class="${isScheduled ? 'bg-emerald-950/70 border border-emerald-700/60' : 'bg-blue-600'} text-slate-100 rounded-xl rounded-tr-none p-2.5 text-xs leading-relaxed shadow">
-          ${htmlText}
+          ${opDisplayText}
           ${mediaHtml}
           ${pdfBox}
         </div>
@@ -675,12 +999,57 @@ async function sendPreprogrammed(key) {
     texts[opt.id] = opt.reply;
   });
 
-  const attachment = key === 'cat_modelos' ? document.getElementById('t_pdf_name').value : null;
+  const attachment = key === 'cat_modelos' ? document.getElementById('t_pdf_name')?.value : null;
+  const replyText = texts[key] || '';
+  if (!replyText && !attachment) return;
 
+  const now = new Date().toLocaleString('es-VE', {
+    timeZone: 'America/Caracas',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
   const activeConv = conversations.find(c => String(c.id) === String(activeChatId));
+  let senderName = 'Asesor';
+  let operatorUser = 'operator';
+
+  if (authenticatedUser) {
+    operatorUser = authenticatedUser.username;
+    if (authenticatedUser.username === 'Jesuse' || authenticatedUser.firstName?.toLowerCase().includes('jesus')) {
+      senderName = 'Asesor Jesus';
+    } else if (authenticatedUser.username === 'rcazorla' || authenticatedUser.firstName?.toLowerCase().includes('ricardo')) {
+      senderName = 'Asesor Ricardo';
+    } else if (authenticatedUser.role === 'admin' || authenticatedUser.username === 'admin') {
+      senderName = 'Administrador';
+    } else {
+      senderName = `Asesor ${authenticatedUser.firstName || authenticatedUser.username}`.trim();
+    }
+  } else if (activeConv && activeConv.attendedByName) {
+    senderName = activeConv.attendedByName;
+    operatorUser = activeConv.attendedBy || 'operator';
+  }
+
+  const optimisticMsg = {
+    sender: 'operator',
+    origin: 'panel',
+    operatorName: senderName,
+    operatorUser: operatorUser,
+    text: replyText,
+    attachment: attachment || null,
+    time: now
+  };
   if (activeConv) {
     activeConv.waitingAdvisor = false;
     activeConv.botActive = false;
+    activeConv.isRead = true;
+    activeConv.unreadCount = 0;
+    activeConv.time = now;
+    if (authenticatedUser) {
+      activeConv.attendedBy = authenticatedUser.username;
+      activeConv.attendedByName = senderName;
+    }
+    if (!Array.isArray(activeConv.messages)) activeConv.messages = [];
+    activeConv.messages.push(optimisticMsg);
+    renderMessages(activeConv);
     renderChatList();
     updateWaitingAdvisorHeaderUI(activeConv);
   }
@@ -697,7 +1066,7 @@ async function sendPreprogrammed(key) {
         body: JSON.stringify({
           channelKey: activeConv.channelKey || activeConv.channel,
           recipientId: activeConv.senderId,
-          text: texts[key]
+          text: replyText
         })
       });
       return;
@@ -720,7 +1089,7 @@ async function sendPreprogrammed(key) {
         body: JSON.stringify({
           channelKey: activeConv.channel,
           recipientUsername,
-          text: texts[key]
+          text: replyText
         })
       });
       return;
@@ -730,27 +1099,205 @@ async function sendPreprogrammed(key) {
     }
   }
 
-  await fetch('/api/messages/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      conversationId: activeChatId,
-      text: texts[key],
-      attachment: attachment,
-      userId: currentUserId
-    })
-  });
+  try {
+    const res = await fetch('/api/messages/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(typeof getAuthHeadersForChannels === 'function' ? getAuthHeadersForChannels() : {})
+      },
+      body: JSON.stringify({
+        conversationId: activeChatId,
+        text: replyText,
+        attachment: attachment,
+        userId: currentUserId
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      console.error('[WhatsApp Send Error]:', data.error);
+      alert('Error enviando mensaje: ' + (data.error || 'No se pudo entregar'));
+    } else if (data.conversation && activeConv) {
+      activeConv.messages = data.conversation.messages;
+      renderMessages(activeConv);
+    }
+  } catch (e) {
+    console.error('[WhatsApp Send Error]:', e);
+  }
+}
+
+let selectedAdvisorFile = null;
+
+function triggerFileUpload() {
+  const fileInput = document.getElementById('advisorFileInput');
+  if (fileInput) {
+    fileInput.value = '';
+    fileInput.click();
+  }
+}
+
+function handleAdvisorFileSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  if (file.size > 25 * 1024 * 1024) {
+    alert('El archivo seleccionado supera el límite de 25 MB.');
+    event.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    selectedAdvisorFile = {
+      file: file,
+      dataBase64: e.target.result,
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      size: file.size
+    };
+
+    const previewContainer = document.getElementById('filePreviewContainer');
+    const previewName = document.getElementById('filePreviewName');
+    const previewSize = document.getElementById('filePreviewSize');
+    const previewIcon = document.getElementById('filePreviewIcon');
+
+    if (previewContainer && previewName && previewSize) {
+      previewName.textContent = file.name;
+
+      let sizeStr = '';
+      if (file.size < 1024) sizeStr = `${file.size} B`;
+      else if (file.size < 1024 * 1024) sizeStr = `${(file.size / 1024).toFixed(1)} KB`;
+      else sizeStr = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+      previewSize.textContent = sizeStr;
+
+      let iconClass = 'fa-file text-slate-300';
+      const t = (file.type || '').toLowerCase();
+      if (t.startsWith('image/')) iconClass = 'fa-file-image text-emerald-400';
+      else if (t.startsWith('video/')) iconClass = 'fa-file-video text-purple-400';
+      else if (t.startsWith('audio/')) iconClass = 'fa-file-audio text-amber-400';
+      else if (t.includes('pdf')) iconClass = 'fa-file-pdf text-rose-400';
+      else if (t.includes('word') || t.includes('officedocument.word')) iconClass = 'fa-file-word text-blue-400';
+      else if (t.includes('excel') || t.includes('spreadsheet') || t.includes('csv')) iconClass = 'fa-file-excel text-emerald-400';
+      else if (t.includes('zip') || t.includes('rar') || t.includes('tar') || t.includes('7z')) iconClass = 'fa-file-zipper text-yellow-400';
+
+      if (previewIcon) {
+        previewIcon.innerHTML = `<i class="fa-solid ${iconClass} text-lg"></i>`;
+      }
+
+      previewContainer.classList.remove('hidden');
+    }
+
+    const inp = document.getElementById('operatorInput');
+    if (inp) {
+      inp.focus();
+      inp.placeholder = `Escribe un comentario opcional para "${file.name}"...`;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function cancelAdvisorFile() {
+  selectedAdvisorFile = null;
+  const fileInput = document.getElementById('advisorFileInput');
+  if (fileInput) fileInput.value = '';
+  const previewContainer = document.getElementById('filePreviewContainer');
+  if (previewContainer) previewContainer.classList.add('hidden');
+  const inp = document.getElementById('operatorInput');
+  if (inp) {
+    inp.placeholder = 'Escribe un mensaje libre al cliente...';
+  }
 }
 
 async function operatorSendMessage() {
   const inp = document.getElementById('operatorInput');
-  const val = inp.value.trim();
-  if (!val) return;
+  const val = inp ? inp.value.trim() : '';
+  const fileToSend = selectedAdvisorFile;
 
+  if (!val && !fileToSend) return;
+
+  // Limpiar input y previsualización de inmediato
+  if (inp) {
+    inp.value = '';
+    inp.placeholder = 'Escribe un mensaje libre al cliente...';
+  }
+  cancelAdvisorFile();
+
+  const now = new Date().toLocaleString('es-VE', {
+    timeZone: 'America/Caracas',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
   const activeConv = conversations.find(c => String(c.id) === String(activeChatId));
+  let senderName = 'Asesor';
+  let operatorUser = 'operator';
+
+  if (authenticatedUser) {
+    operatorUser = authenticatedUser.username;
+    if (authenticatedUser.username === 'Jesuse' || authenticatedUser.firstName?.toLowerCase().includes('jesus')) {
+      senderName = 'Asesor Jesus';
+    } else if (authenticatedUser.username === 'rcazorla' || authenticatedUser.firstName?.toLowerCase().includes('ricardo')) {
+      senderName = 'Asesor Ricardo';
+    } else if (authenticatedUser.role === 'admin' || authenticatedUser.username === 'admin') {
+      senderName = 'Administrador';
+    } else {
+      senderName = `Asesor ${authenticatedUser.firstName || authenticatedUser.username}`.trim();
+    }
+  } else if (activeConv && activeConv.attendedByName) {
+    senderName = activeConv.attendedByName;
+    operatorUser = activeConv.attendedBy || 'operator';
+  }
+
+  let mediaType = null;
+  let mediaUrl = null;
+  let mediaLabel = null;
+
+  if (fileToSend) {
+    mediaUrl = fileToSend.dataBase64;
+    const fType = fileToSend.type || '';
+    if (fType.startsWith('image/')) {
+      mediaType = 'image';
+      mediaLabel = `📷 Imagen (${fileToSend.name})`;
+    } else if (fType.startsWith('video/')) {
+      mediaType = 'video';
+      mediaLabel = `🎥 Video (${fileToSend.name})`;
+    } else if (fType.startsWith('audio/')) {
+      mediaType = 'audio';
+      mediaLabel = `🎤 Audio (${fileToSend.name})`;
+    } else {
+      mediaType = 'document';
+      mediaLabel = `📄 Documento — ${fileToSend.name}`;
+    }
+  }
+
+  const optimisticMsg = {
+    sender: 'operator',
+    origin: 'panel',
+    operatorName: senderName,
+    operatorUser: operatorUser,
+    text: val,
+    time: now
+  };
+  if (mediaType && mediaUrl) {
+    optimisticMsg.mediaType = mediaType;
+    optimisticMsg.mediaUrl = mediaUrl;
+    optimisticMsg.mediaLabel = mediaLabel;
+  }
+
   if (activeConv) {
     activeConv.waitingAdvisor = false;
     activeConv.botActive = false;
+    activeConv.isRead = true;
+    activeConv.unreadCount = 0;
+    activeConv.time = now;
+    if (authenticatedUser) {
+      activeConv.attendedBy = authenticatedUser.username;
+      activeConv.attendedByName = senderName;
+    }
+    if (!Array.isArray(activeConv.messages)) activeConv.messages = [];
+    activeConv.messages.push(optimisticMsg);
+
+    // ⚡ ACTUALIZACIÓN INSTANTÁNEA EN PANTALLA: Se muestra de inmediato sin parpadear
+    renderMessages(activeConv);
     renderChatList();
     updateWaitingAdvisorHeaderUI(activeConv);
   }
@@ -767,7 +1314,10 @@ async function operatorSendMessage() {
         body: JSON.stringify({
           channelKey: activeConv.channelKey || activeConv.channel,
           recipientId: activeConv.senderId,
-          text: val
+          text: val,
+          fileData: fileToSend ? fileToSend.dataBase64 : null,
+          fileName: fileToSend ? fileToSend.name : null,
+          fileType: fileToSend ? fileToSend.type : null
         })
       });
 
@@ -775,11 +1325,7 @@ async function operatorSendMessage() {
       if (!res.ok) {
         console.error('[Meta] Error enviando mensaje:', data.error);
         alert(`Error enviando mensaje por ${activeConv.platform}: ${data.error}`);
-        return;
       }
-
-      // El mensaje se agregará cuando llegue la actualización via socket
-      inp.value = '';
       return;
     } catch (e) {
       console.error('[Meta] Error de conexión al enviar mensaje:', e);
@@ -801,18 +1347,14 @@ async function operatorSendMessage() {
         body: JSON.stringify({
           channelKey: activeConv.channel,
           recipientUsername,
-          text: val
+          text: val || (fileToSend ? `📎 Archivo: ${fileToSend.name}` : '')
         })
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        console.error('[TikTok] Error enviando mensaje:', data.error);
         alert(`Error enviando mensaje por TikTok: ${data.error || 'No se pudo enviar'}`);
-        return;
       }
-
-      inp.value = '';
       return;
     } catch (e) {
       console.error('[TikTok] Error de conexión al enviar mensaje:', e);
@@ -821,34 +1363,37 @@ async function operatorSendMessage() {
     }
   }
 
-  // WhatsApp: flujo existente
-  await fetch('/api/messages/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      conversationId: activeChatId,
-      text: val,
-      userId: currentUserId
-    })
-  });
-
-  inp.value = '';
-}
-
-async function simulateCustomerClick(actionText) {
-  const ch = document.getElementById('simChannel').value;
-  const conv = conversations.find(c => String(c.id) === String(activeChatId));
-  if (conv) conv.channel = ch;
-
-  await fetch('/api/messages/simulate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      conversationId: activeChatId,
-      channel: ch,
-      text: actionText
-    })
-  });
+  // WhatsApp: flujo en vivo con sincronización
+  try {
+    const res = await fetch('/api/messages/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(typeof getAuthHeadersForChannels === 'function' ? getAuthHeadersForChannels() : {})
+      },
+      body: JSON.stringify({
+        conversationId: activeChatId,
+        text: val,
+        userId: currentUserId,
+        fileData: fileToSend ? fileToSend.dataBase64 : null,
+        fileName: fileToSend ? fileToSend.name : null,
+        fileType: fileToSend ? fileToSend.type : null
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      console.error('[WhatsApp Send Error]:', data.error);
+      alert('Error enviando mensaje de WhatsApp: ' + (data.error || 'No se pudo entregar'));
+    } else if (data.conversation && activeConv) {
+      // Reconciliar con la lista confirmada por el servidor
+      activeConv.messages = data.conversation.messages;
+      renderMessages(activeConv);
+      renderChatList();
+    }
+  } catch (err) {
+    console.error('[WhatsApp Network Error]:', err);
+    alert('Error de conexión al enviar mensaje de WhatsApp.');
+  }
 }
 
 function filterChannel(ch) {
@@ -945,5 +1490,66 @@ async function syncInstagramDirectly(silent = false) {
     if (!silent) {
       alert('Error al conectar con el servidor para sincronizar Instagram.');
     }
+  }
+}
+
+// ─── Funciones de Exportación Exhaustiva de Conversaciones ───
+function openExportModal() {
+  const modal = document.getElementById('exportModal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    const totalConvsEl = document.getElementById('exportTotalConvs');
+    const totalMsgsEl = document.getElementById('exportTotalMsgs');
+    if (totalConvsEl && Array.isArray(conversations)) {
+      totalConvsEl.textContent = conversations.length.toLocaleString('es-VE');
+    }
+    if (totalMsgsEl && Array.isArray(conversations)) {
+      const msgSum = conversations.reduce((acc, c) => acc + (c.messages ? c.messages.length : 0), 0);
+      totalMsgsEl.textContent = msgSum.toLocaleString('es-VE');
+    }
+  }
+}
+
+function closeExportModal() {
+  const modal = document.getElementById('exportModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function downloadExportFile(format) {
+  const fmt = (format || 'csv').toLowerCase();
+  const token = localStorage.getItem('token') || (typeof getToken === 'function' ? getToken() : '');
+  const url = `/api/conversations/export?format=${fmt}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+
+    if (!res.ok) {
+      throw new Error(`Error en servidor: ${res.status}`);
+    }
+
+    const blob = await res.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    const nowISO = new Date().toISOString().slice(0, 10);
+    a.download = `export_conversaciones_${fmt}_${nowISO}.${fmt === 'json' ? 'json' : 'csv'}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(downloadUrl);
+
+    if (typeof showToast === 'function') {
+      showToast('Exportación descargada con éxito', 'success');
+    } else {
+      console.log('✅ Exportación descargada con éxito.');
+    }
+    closeExportModal();
+  } catch (err) {
+    console.error('Error al descargar exportación:', err);
+    alert('No se pudo descargar la exportación. Intenta nuevamente.');
   }
 }

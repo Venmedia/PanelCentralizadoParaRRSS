@@ -13,15 +13,21 @@ if (!fs.existsSync(PATHS.MEDIA_DIR)) {
 function resolveRealPhoneFromBaileys(jidOrPhone, fallbackPhone = '') {
   try {
     const candidates = [jidOrPhone, fallbackPhone].filter(Boolean);
+    const authDirs = [
+      path.join(PATHS.ROOT_DIR, 'auth_info_baileys'),
+      path.join(PATHS.ROOT_DIR, 'auth_info_baileys_tracto')
+    ];
     for (const candidate of candidates) {
       const rawId = String(candidate).split('@')[0].split(':')[0].replace(/\D/g, '');
       if (!rawId) continue;
 
-      const reverseMapPath = path.join(PATHS.ROOT_DIR, 'auth_info_baileys', `lid-mapping-${rawId}_reverse.json`);
-      if (fs.existsSync(reverseMapPath)) {
-        const mapped = JSON.parse(fs.readFileSync(reverseMapPath, 'utf8'));
-        if (mapped && typeof mapped === 'string') {
-          return mapped.replace(/\D/g, '');
+      for (const dir of authDirs) {
+        const reverseMapPath = path.join(dir, `lid-mapping-${rawId}_reverse.json`);
+        if (fs.existsSync(reverseMapPath)) {
+          const mapped = JSON.parse(fs.readFileSync(reverseMapPath, 'utf8'));
+          if (mapped && typeof mapped === 'string') {
+            return mapped.replace(/\D/g, '');
+          }
         }
       }
     }
@@ -116,12 +122,33 @@ function getConversations() {
   return conversations;
 }
 
+let lastBackupDate = null;
+function backupConversations() {
+  try {
+    const today = getTodayISO();
+    if (lastBackupDate === today) return;
+    const backupDir = path.join(PATHS.ROOT_DIR, 'backups');
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+    const backupFile = path.join(backupDir, `conversations_${today}.json.bak`);
+    if (fs.existsSync(PATHS.CONVERSATIONS_FILE)) {
+      fs.copyFileSync(PATHS.CONVERSATIONS_FILE, backupFile);
+      lastBackupDate = today;
+      console.log(`[Storage] 💾 Backup de seguridad creado: conversations_${today}.json.bak`);
+    }
+  } catch (err) {
+    console.error('[Storage] Error creando backup de conversaciones:', err.message);
+  }
+}
+
 function saveConversations(data) {
   if (Array.isArray(data)) {
     const { list } = sanitizeAndResolveConversations(data);
     conversations = list;
   }
-  fs.writeFileSync(PATHS.CONVERSATIONS_FILE, JSON.stringify(conversations, null, 2));
+  const tempPath = `${PATHS.CONVERSATIONS_FILE}.tmp`;
+  fs.writeFileSync(tempPath, JSON.stringify(conversations, null, 2));
+  fs.renameSync(tempPath, PATHS.CONVERSATIONS_FILE);
+  backupConversations();
 }
 
 function loadUsers() {
@@ -167,12 +194,13 @@ function getCompanyFromChannel(ch) {
 }
 
 function getTodayISO() {
-  // Siempre usar hora de Venezuela (America/Caracas = UTC-4)
-  const parts = new Date().toLocaleString('en-US', { timeZone: 'America/Caracas' }).split(/[/,: ]+/);
-  const year = parseInt(parts[2]);
-  const month = String(parseInt(parts[0])).padStart(2, '0');
-  const day = String(parseInt(parts[1])).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  // Siempre usar hora de Venezuela (America/Caracas = UTC-4) garantizada con Intl
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Caracas',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date());
 }
 
 function formatDurationMs(ms) {

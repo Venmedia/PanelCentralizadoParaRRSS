@@ -30,14 +30,10 @@ function createAnalyticsRouter() {
   // ─── Helper: Computar estadísticas a partir de eventos filtrados ─────
   function computeStats(events, dateForToday) {
     const allUsers = loadUsers();
-    const trackedUsers = allUsers.filter(u => !isAdminUser(u));
-    const adminIds = new Set(allUsers.filter(u => isAdminUser(u)).map(u => Number(u.id)));
+    // Registrar estadísticas para todos los usuarios activos (asesores y administradores que atienden clientes)
+    const trackedUsers = allUsers.filter(u => u.status !== 'inactive');
     const todayISO = dateForToday || analyticsService.getTodayISO();
-
-    // Filtrar eventos de admin
-    const filteredEvents = events.filter(
-      e => !adminIds.has(Number(e.userId)) && String(e.username || '').toLowerCase() !== 'admin'
-    );
+    const filteredEvents = events || [];
 
     // Inicializar resúmenes de canales
     const channelsSummary = {};

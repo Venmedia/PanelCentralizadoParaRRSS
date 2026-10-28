@@ -15,6 +15,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
+        TZ: 'America/Caracas',
         OMNIPANEL_VAULT_SECRET: 'OmniPanel_Consorcio_Agropower_Tractopower_AES256_MasterVaultKey_2026!'
       }
     }

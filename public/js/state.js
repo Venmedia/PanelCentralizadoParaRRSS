@@ -44,9 +44,9 @@ const channelMeta = {
     company: 'agropower',
     companyName: '🌿 Agropower',
     companyBadgeClass: 'bg-emerald-950 text-emerald-300 border-emerald-700',
-    label: 'WA Agropower (En prueba)',
-    shortLabel: 'WA (Prueba)',
-    account: 'Pendiente / En prueba',
+    label: 'WhatsApp Agropower',
+    shortLabel: 'WA Agropower',
+    account: '+58 422-8333876',
     badgeClass: 'bg-emerald-950 text-emerald-400 border-emerald-800',
     icon: 'fa-whatsapp text-emerald-400'
   },
@@ -86,11 +86,11 @@ const channelMeta = {
     company: 'tractopower',
     companyName: '🚜 Tractopower',
     companyBadgeClass: 'bg-amber-950 text-amber-300 border-amber-700',
-    label: 'WA Tractopower (En prueba)',
-    shortLabel: 'WA (Prueba)',
-    account: 'Pendiente / En prueba',
-    badgeClass: 'bg-emerald-950 text-emerald-400 border-emerald-800',
-    icon: 'fa-whatsapp text-emerald-400'
+    label: 'WhatsApp Tractopower',
+    shortLabel: 'WA Tractopower',
+    account: '+58 424-9578682',
+    badgeClass: 'bg-amber-950 text-amber-400 border-amber-800',
+    icon: 'fa-whatsapp text-amber-400'
   },
   ig_tracto: {
     company: 'tractopower',

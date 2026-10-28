@@ -76,7 +76,7 @@ async function loadAvailableWeeks() {
 
 function setAnalyticsQuickFilter(filter) {
   analyticsCurrentFilter = filter;
-  const today = new Date();
+  const today = getVenezuelaToday();
   let from, to;
 
   switch (filter) {
@@ -214,10 +214,26 @@ function applyCustomDateRange() {
 }
 
 function formatLocalDate(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Caracas',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(d || new Date());
+  } catch (e) {
+    const dt = d || new Date();
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const day = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+}
+
+function getVenezuelaToday() {
+  const iso = formatLocalDate(new Date());
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
 }
 
 // ─── Renderizado principal del dashboard ───────────────────────────────

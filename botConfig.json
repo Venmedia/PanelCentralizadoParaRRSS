@@ -13,17 +13,17 @@
       "instagram": "agropower_venezuela",
       "tiktok": "agropower_venezuela",
       "facebook": "Pendiente por configurar",
-      "whatsapp": "Baileys QR (+584220398165) / agropower_wa_principal"
+      "whatsapp": "Baileys + Evolution API"
     },
     "tractopower": {
       "name": "Tractopower",
       "instagram": "Tractopower_venezuela",
       "tiktok": "tractopowervenezuela",
       "facebook": "Pendiente por configurar",
-      "whatsapp": "Baileys QR (+584220398165) / tractopower_wa_principal"
+      "whatsapp": "Baileys + Evolution API"
     }
   },
-  "greeting": "👋 *¡Hola! Bienvenido a nuestra central de atención.*\nSelecciona qué información deseas recibir:\n\n📘 *1. CATÁLOGO Y DESC. TÉCNICA*\n • Catálogo de modelos (PDF)\n • Repuestos\n • Garantía\n\n💵 *2. COSTOS Y FINANCIAMIENTO*\n • Precio de los modelos\n • Sistema de financiamiento\n • Compras programadas\n\n🧑‍💼 *3. HABLAR CON UN ASESOR*",
+  "greeting": "👋 *¡Hola! Este es nuestro sistema automatizado para atención fuera del horario laboral.*\nSelecciona qué información deseas recibir:\n\n📘 *1. CATÁLOGO Y DESC. TÉCNICA*\n • Catálogo de modelos (PDF)\n • Repuestos\n • Garantía\n\n💵 *2. COSTOS Y FINANCIAMIENTO*\n • Precio de los modelos\n • Sistema de financiamiento\n • Compras programadas\n\n🧑‍💼 *3. HABLAR CON UN ASESOR*\n\nEstamos construyendo nuestro sistema de atención. Próximamente un asesor se comunicara contigo para darte el servicio personalizado",
   "customCategories": [],
   "customOptions": [],
   "categories": {
@@ -33,15 +33,15 @@
         "cat_modelos": {
           "title": "Catálogo de modelos",
           "reply": "📄 *Catálogo Oficial de Modelos:* Te adjuntamos en este mensaje nuestro catálogo completo en PDF con todas las fichas técnicas y modelos disponibles.",
-          "attachment": "Catalogo_Oficial_2026.pdf"
+          "attachment": "1792614914044_5atuoj.pdf"
         },
         "repuestos": {
           "title": "Repuestos",
-          "reply": "🔧 *Repuestos Originales:* Contamos con amplio stock de repuestos y consumibles originales con despacho a nivel nacional. Indícanos qué modelo tienes y qué pieza necesitas."
+          "reply": "🔧 *Repuestos Originales:* Contamos con amplio stock de repuestos y consumibles originales con despacho a nivel nacional. Indícanos qué modelo tienes y qué pieza necesitas.\n\nEstamos construyendo nuestro sistema de atención. Próximamente un asesor se comunicara contigo para darte el servicio personalizado"
         },
         "garantia": {
           "title": "Garantía",
-          "reply": "🛡️ *Garantía Oficial:* Todas nuestras unidades cuentan con garantía certificada de fábrica y soporte técnico directo en nuestros talleres autorizados."
+          "reply": "🛡️ *Garantía Oficial:* Todas nuestras unidades cuentan con garantía certificada de fábrica y soporte técnico directo en nuestros talleres autorizados.\n\nEstamos construyendo nuestro sistema de atención. Próximamente un asesor se comunicara contigo para darte el servicio personalizado"
         }
       }
     },
@@ -50,15 +50,15 @@
       "items": {
         "precios": {
           "title": "Precio de los modelos",
-          "reply": "💰 *Precio de los Modelos:* Nuestros precios de contado y lista actualizada varían según la configuración elegida. ¿Qué modelo del catálogo te interesa cotizar?"
+          "reply": "💰 *Precio de los Modelos:* Nuestros precios de contado y lista actualizada varían según la configuración elegida. ¿Qué modelo del catálogo te interesa cotizar?\n\nEstamos construyendo nuestro sistema de atención. Próximamente un asesor se comunicara contigo para darte el servicio personalizado"
         },
         "financiamiento": {
           "title": "Sistema de financiamiento",
-          "reply": "💳 *Sistema de Financiamiento:* Ofrecemos planes con inicial desde el 30% y financiamiento en cuotas fijas mensuales de 12 a 36 meses con aprobación rápida."
+          "reply": "💳 *Sistema de Financiamiento:* Ofrecemos planes con inicial desde el 30% y financiamiento en cuotas fijas mensuales de 12 a 36 meses con aprobación rápida.\n\nEstamos construyendo nuestro sistema de atención. Próximamente un asesor se comunicara contigo para darte el servicio personalizado"
         },
         "compras_prog": {
           "title": "Compras programadas",
-          "reply": "📦 *Compras Programadas (Pedido de Unidades):* Reserva tu unidad bajo pedido programado congelando el precio actual con planes de pago flexibles previos a la entrega."
+          "reply": "📦 *Compras Programadas (Pedido de Unidades):* Reserva tu unidad bajo pedido programado congelando el precio actual con planes de pago flexibles previos a la entrega.\n\nEstamos construyendo nuestro sistema de atención. Próximamente un asesor se comunicara contigo para darte el servicio personalizado"
         }
       }
     },

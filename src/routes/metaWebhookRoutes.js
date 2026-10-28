@@ -93,13 +93,27 @@ module.exports = function createMetaWebhookRoutes(io) {
                         messageText = messageText ? `${messageText} ${attachInfo}` : attachInfo;
                     }
 
-                    // Agregar mensaje como enviado por el operador (móvil)
+                    // Agregar mensaje como enviado por el operador (móvil) con fecha y hora real de Meta
+                    const msgTimestamp = msg.timestamp ? Number(msg.timestamp) : Date.now();
+                    const msgTime = new Date(msgTimestamp).toLocaleString('es-VE', {
+                        timeZone: 'America/Caracas',
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+
                     const updatedConv = addMessageToMetaConversation(chatId, {
                         sender: 'operator',
+                        origin: 'mobile',
                         text: messageText,
+                        time: msgTime,
+                        timestamp: msgTimestamp,
                         platform: msg.platform,
                         messageId: msg.messageId,
-                        operatorName: 'Móvil / Instagram App'
+                        operatorName: '📱 Móvil / Instagram App',
+                        operatorUser: 'mobile'
                     });
 
                     // Emitir al frontend en tiempo real vía Socket.io
@@ -108,10 +122,12 @@ module.exports = function createMetaWebhookRoutes(io) {
                             conversation: updatedConv,
                             message: {
                                 sender: 'operator',
+                                origin: 'mobile',
                                 text: messageText,
                                 platform: msg.platform,
                                 messageId: msg.messageId,
-                                operatorName: 'Móvil / Instagram App'
+                                operatorName: '📱 Móvil / Instagram App',
+                                operatorUser: 'mobile'
                             },
                             platform: msg.platform,
                             channelKey
@@ -158,10 +174,22 @@ module.exports = function createMetaWebhookRoutes(io) {
                     messageText = messageText ? `${messageText} ${attachInfo}` : attachInfo;
                 }
 
-                // Agregar mensaje a la conversación
+                // Agregar mensaje a la conversación con fecha y hora real de Meta
+                const msgTimestamp = msg.timestamp ? Number(msg.timestamp) : Date.now();
+                const msgTime = new Date(msgTimestamp).toLocaleString('es-VE', {
+                    timeZone: 'America/Caracas',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
                 const updatedConv = addMessageToMetaConversation(chatId, {
                     sender: 'client',
                     text: messageText,
+                    time: msgTime,
+                    timestamp: msgTimestamp,
                     platform: msg.platform,
                     messageId: msg.messageId
                 });

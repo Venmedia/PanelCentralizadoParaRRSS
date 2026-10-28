@@ -10,6 +10,22 @@ function createUserRouter(io) {
     res.json(loadUsers());
   });
 
+  // Obtener lista de asesores activos para asignación (todos los usuarios autenticados)
+  router.get('/advisors', requireAuth, (req, res) => {
+    const users = loadUsers();
+    const advisors = users
+      .filter(u => u.status !== 'inactive')
+      .map(u => ({
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        username: u.username,
+        role: u.role,
+        online: u.online
+      }));
+    res.json(advisors);
+  });
+
   // Crear nuevo usuario administrable o admin (EXCLUSIVO PARA ADMIN)
   router.post('/', requireAuth, requireAdmin, (req, res) => {
     const { firstName, lastName, email, username, password, role } = req.body || {};

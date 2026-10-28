@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { getAutoReplyMessage } = require('./src/services/scheduleService');
 
 const configPath = path.join(__dirname, 'botConfig.json');
 
@@ -42,7 +43,7 @@ function flattenOptions(config) {
         title: item.title || '',
         reply: item.reply || '',
         attachment: item.attachment || null,
-        attachmentUrl: item.attachmentUrl || null,
+        attachmentUrl: item.attachmentUrl || item.attachment || null,
         pauseBot: item.waitingAdvisor || item.pauseBot || false,
         keywords: item.keywords || []
       });
@@ -98,7 +99,7 @@ function processIncomingMessage(incomingText) {
     return {
       matchedKey: 'greeting',
       title: 'Menú Principal',
-      reply: config.greeting || config.schedule?.welcomeMessage || '',
+      reply: getAutoReplyMessage(config),
       attachment: null,
       pauseBot: false,
       isMenu: true
@@ -171,11 +172,11 @@ function processIncomingMessage(incomingText) {
     }
   }
 
-  // 5. Si no coincide con nada → Enviar Menú de Bienvenida
+  // 5. Si no coincide con nada → Enviar Menú de Bienvenida / Fuera de Horario
   return {
     matchedKey: 'greeting',
     title: 'Menú Principal',
-    reply: config.greeting || config.schedule?.welcomeMessage || '',
+    reply: getAutoReplyMessage(config),
     attachment: null,
     pauseBot: false,
     isMenu: true

@@ -871,7 +871,7 @@ async function saveTemplates(btnId) {
         facebook: document.getElementById('c_agro_fb')?.value || 'Pendiente por configurar',
         whatsapp:
           document.getElementById('c_agro_wa')?.value ||
-          'Pendiente por configurar (Usando WhatsApp de prueba)'
+          '+58 422-8333876'
       },
       tractopower: {
         name: 'Tractopower',
@@ -880,7 +880,7 @@ async function saveTemplates(btnId) {
         facebook: document.getElementById('c_tracto_fb')?.value || 'Pendiente por configurar',
         whatsapp:
           document.getElementById('c_tracto_wa')?.value ||
-          'Pendiente por configurar (Usando WhatsApp de prueba)'
+          '+58 424-9578682'
       }
     },
     categories: {

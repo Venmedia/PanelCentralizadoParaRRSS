@@ -9,6 +9,8 @@
  */
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { requireAuth, requireAdmin } = require('../middleware/authMiddleware');
 const {
     FERDIUM_RECIPES,
@@ -43,6 +45,8 @@ const {
     companyFromChannelKey,
     syncInstagramRecentConversations
 } = require('../services/metaApiService');
+const analyticsService = require('../services/analyticsService');
+const { updateAdvisorSessionActivity } = require('../services/sessionService');
 
 module.exports = function createChannelAuthRoutes(io, whatsappService) {
     const router = express.Router();
@@ -168,6 +172,59 @@ module.exports = function createChannelAuthRoutes(io, whatsappService) {
             }
 
             const result = await sendTikTokMessage(channelKey, recipientUsername, text, io);
+
+            const activeUser = req.authUser || req.user;
+            if (activeUser) {
+                let operatorName = 'Asesor';
+                if (activeUser.username === 'Jesuse' || activeUser.firstName?.toLowerCase().includes('jesus')) {
+                    operatorName = 'Asesor Jesus';
+                } else if (activeUser.username === 'rcazorla' || activeUser.firstName?.toLowerCase().includes('ricardo')) {
+                    operatorName = 'Asesor Ricardo';
+                } else if (activeUser.role === 'admin' || activeUser.username === 'admin') {
+                    operatorName = 'Administrador';
+                } else {
+                    operatorName = `Asesor ${activeUser.firstName || activeUser.username}`.trim();
+                }
+                const todayISO = analyticsService.getTodayISO();
+                const comp = channelKey.includes('tracto') ? 'Tractopower' : 'Agropower';
+                const convId = `${channelKey}_${recipientUsername}`;
+
+                if (req.authSession?.sessionId) {
+                    updateAdvisorSessionActivity(activeUser.id, req.authSession.sessionId, false);
+                }
+
+                analyticsService.recordEvent({
+                    date: todayISO,
+                    time: analyticsService.getNowTime(),
+                    userId: activeUser.id,
+                    username: activeUser.username,
+                    userFullName: operatorName,
+                    type: 'message_sent',
+                    company: comp,
+                    channel: channelKey,
+                    conversationId: convId
+                });
+
+                const alreadyAttended = analyticsService.hasAttendedToday(activeUser.id, convId, activeUser.username);
+                if (!alreadyAttended) {
+                    analyticsService.recordEvent({
+                        date: todayISO,
+                        time: analyticsService.getNowTime(),
+                        userId: activeUser.id,
+                        username: activeUser.username,
+                        userFullName: operatorName,
+                        type: 'client_attended',
+                        company: comp,
+                        channel: channelKey,
+                        conversationId: convId,
+                        clientName: recipientUsername
+                    });
+                }
+                if (io) {
+                    io.emit('analytics_updated');
+                }
+            }
+
             res.json(result);
         } catch (err) {
             console.error('[TikTokRoutes] Error enviando mensaje TikTok:', err);
@@ -508,9 +565,9 @@ module.exports = function createChannelAuthRoutes(io, whatsappService) {
     router.post('/meta/send-message', requireAuth, (req, res) => {
         (async () => {
             try {
-                const { channelKey, recipientId, text } = req.body || {};
-                if (!channelKey || !recipientId || !text) {
-                    return res.status(400).json({ error: 'Faltan parámetros: channelKey, recipientId y text son obligatorios.' });
+                const { channelKey, recipientId, text, fileData, fileName, fileType } = req.body || {};
+                if (!channelKey || !recipientId || (!text && !fileData)) {
+                    return res.status(400).json({ error: 'Faltan parámetros: channelKey, recipientId y text o archivo son obligatorios.' });
                 }
 
                 const pageToken = getTokenForChannel(channelKey);
@@ -518,25 +575,141 @@ module.exports = function createChannelAuthRoutes(io, whatsappService) {
                     return res.status(400).json({ error: `No hay token disponible para el canal ${channelKey}. Vincula tu cuenta primero.` });
                 }
 
+                let mediaUrl = null;
+                let mediaType = null;
+                let mediaLabel = null;
+
+                if (fileData && fileName) {
+                    try {
+                        const mediaDir = path.join(__dirname, '..', '..', 'public', 'media', 'whatsapp');
+                        if (!fs.existsSync(mediaDir)) {
+                            fs.mkdirSync(mediaDir, { recursive: true });
+                        }
+                        const base64Content = fileData.includes(';base64,') ? fileData.split(';base64,')[1] : fileData;
+                        const fileBuffer = Buffer.from(base64Content, 'base64');
+                        const cleanName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+                        const uniqueFileName = `${Date.now()}_${cleanName}`;
+                        const targetPath = path.join(mediaDir, uniqueFileName);
+                        fs.writeFileSync(targetPath, fileBuffer);
+
+                        mediaUrl = `/media/whatsapp/${uniqueFileName}`;
+                        const mime = fileType || 'application/octet-stream';
+                        if (mime.startsWith('image/')) {
+                            mediaType = 'image';
+                            mediaLabel = `📷 Imagen (${fileName})`;
+                        } else if (mime.startsWith('video/')) {
+                            mediaType = 'video';
+                            mediaLabel = `🎥 Video (${fileName})`;
+                        } else if (mime.startsWith('audio/')) {
+                            mediaType = 'audio';
+                            mediaLabel = `🎤 Audio (${fileName})`;
+                        } else {
+                            mediaType = 'document';
+                            mediaLabel = `📄 Documento — ${fileName}`;
+                        }
+                    } catch (err) {
+                        console.error('[Meta] Error guardando archivo adjunto:', err);
+                    }
+                }
+
+                const outboundText = text || (fileName ? `[Archivo adjunto: ${fileName}]` : '📎 Archivo compartido');
                 let result;
                 const platform = channelKey.startsWith('ig_') ? 'instagram' : 'facebook';
 
                 if (platform === 'instagram') {
-                    result = await sendInstagramMessage(pageToken, recipientId, text);
+                    result = await sendInstagramMessage(pageToken, recipientId, outboundText);
                 } else {
-                    result = await sendFacebookMessage(pageToken, recipientId, text);
+                    result = await sendFacebookMessage(pageToken, recipientId, outboundText);
                 }
 
                 // Guardar el mensaje enviado en la conversación
                 const chatId = `${platform === 'instagram' ? 'ig' : 'fb'}:${recipientId}`;
-                const operatorName = req.user?.username || req.user?.name || 'Asesor';
-                const updatedConv = addMessageToMetaConversation(chatId, {
+                const activeUser = req.authUser || req.user;
+                let operatorName = 'Asesor';
+                if (activeUser) {
+                    if (activeUser.username === 'Jesuse' || activeUser.firstName?.toLowerCase().includes('jesus')) {
+                        operatorName = 'Asesor Jesus';
+                    } else if (activeUser.username === 'rcazorla' || activeUser.firstName?.toLowerCase().includes('ricardo')) {
+                        operatorName = 'Asesor Ricardo';
+                    } else if (activeUser.role === 'admin' || activeUser.username === 'admin') {
+                        operatorName = 'Administrador';
+                    } else {
+                        operatorName = `Asesor ${activeUser.firstName || activeUser.username}`.trim();
+                    }
+                }
+                const operatorUser = activeUser ? activeUser.username : 'operator';
+                const nowTimestamp = Date.now();
+                const nowVE = new Date(nowTimestamp).toLocaleString('es-VE', {
+                    timeZone: 'America/Caracas',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                const msgPayload = {
                     sender: 'operator',
-                    text,
+                    origin: 'panel',
+                    text: text || '',
+                    time: nowVE,
+                    timestamp: nowTimestamp,
                     platform,
                     messageId: result.message_id || `sent_${Date.now()}`,
-                    operatorName
-                });
+                    operatorName,
+                    operatorUser
+                };
+                if (mediaType && mediaUrl) {
+                    msgPayload.mediaType = mediaType;
+                    msgPayload.mediaUrl = mediaUrl;
+                    msgPayload.mediaLabel = mediaLabel;
+                }
+                const updatedConv = addMessageToMetaConversation(chatId, msgPayload);
+
+                if (updatedConv && activeUser) {
+                    updatedConv.attendedBy = activeUser.username;
+                    updatedConv.attendedByName = operatorName;
+                    updatedConv.isRead = true;
+                    updatedConv.unreadCount = 0;
+                }
+
+                // Registrar en analíticas y estadísticas del asesor
+                if (activeUser) {
+                    const todayISO = analyticsService.getTodayISO();
+                    const comp = channelKey.includes('tracto') ? 'Tractopower' : 'Agropower';
+                    const convName = updatedConv?.name || recipientId;
+
+                    if (req.authSession?.sessionId) {
+                        updateAdvisorSessionActivity(activeUser.id, req.authSession.sessionId, false);
+                    }
+
+                    analyticsService.recordEvent({
+                        date: todayISO,
+                        time: analyticsService.getNowTime(),
+                        userId: activeUser.id,
+                        username: activeUser.username,
+                        userFullName: operatorName,
+                        type: 'message_sent',
+                        company: comp,
+                        channel: channelKey,
+                        conversationId: chatId
+                    });
+
+                    const alreadyAttended = analyticsService.hasAttendedToday(activeUser.id, chatId, activeUser.username);
+                    if (!alreadyAttended) {
+                        analyticsService.recordEvent({
+                            date: todayISO,
+                            time: analyticsService.getNowTime(),
+                            userId: activeUser.id,
+                            username: activeUser.username,
+                            userFullName: operatorName,
+                            type: 'client_attended',
+                            company: comp,
+                            channel: channelKey,
+                            conversationId: chatId,
+                            clientName: convName
+                        });
+                    }
+                }
 
                 // Emitir actualización
                 if (io) {
@@ -556,6 +729,7 @@ module.exports = function createChannelAuthRoutes(io, whatsappService) {
                     }
                     const allMetaConvs = getMetaConversationsAsArray();
                     io.emit('meta_conversations_updated', allMetaConvs);
+                    io.emit('analytics_updated');
                 }
 
                 res.json({

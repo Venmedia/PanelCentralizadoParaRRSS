@@ -27,6 +27,20 @@ const MAX_RETENTION_DAYS = 90;
 // ─── Zona horaria fija: Venezuela (America/Caracas = UTC-4) ────────────
 const TIMEZONE = 'America/Caracas';
 
+const vzDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+});
+
+const vzTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: TIMEZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false
+});
+
 // Asegurar que exista el directorio
 function ensureAnalyticsDir() {
   if (!fs.existsSync(ANALYTICS_DIR)) {
@@ -34,41 +48,38 @@ function ensureAnalyticsDir() {
   }
 }
 
-// ─── Utilidades de fecha (siempre en hora Venezuela) ───────────────────
+// ─── Utilidades de fecha (estrictamente en horario de Venezuela) ────────
 
 /**
- * Obtiene un objeto Date ajustado a la hora de Venezuela
+ * Obtiene la fecha actual en formato YYYY-MM-DD en hora de Venezuela
+ */
+function getTodayISO() {
+  return vzDateFormatter.format(new Date());
+}
+
+/**
+ * Formatea cualquier fecha Date a YYYY-MM-DD en hora de Venezuela
+ */
+function formatDateISO(d) {
+  return vzDateFormatter.format(d || new Date());
+}
+
+/**
+ * Obtiene la hora actual HH:mm en hora de Venezuela
+ */
+function getNowTime() {
+  return vzTimeFormatter.format(new Date());
+}
+
+/**
+ * Obtiene los componentes de fecha/hora desglosados en zona Venezuela
  */
 function getVenezuelaDate(d) {
-  const dateObj = d || new Date();
-  // Convertir a string en zona Venezuela y re-parsear
-  const parts = dateObj.toLocaleString('en-US', { timeZone: TIMEZONE }).split(/[/,: ]+/);
-  // parts: [month, day, year, hours, minutes, seconds, AM/PM]
-  const month = parseInt(parts[0]);
-  const day = parseInt(parts[1]);
-  const year = parseInt(parts[2]);
-  let hours = parseInt(parts[3]);
-  const minutes = parseInt(parts[4]);
-  const seconds = parseInt(parts[5]);
-  const ampm = parts[6];
-  if (ampm === 'PM' && hours < 12) hours += 12;
-  if (ampm === 'AM' && hours === 12) hours = 0;
-  return { year, month, day, hours, minutes, seconds };
-}
-
-function getTodayISO() {
-  const v = getVenezuelaDate();
-  return `${v.year}-${String(v.month).padStart(2, '0')}-${String(v.day).padStart(2, '0')}`;
-}
-
-function formatDateISO(d) {
-  const v = getVenezuelaDate(d);
-  return `${v.year}-${String(v.month).padStart(2, '0')}-${String(v.day).padStart(2, '0')}`;
-}
-
-function getNowTime() {
-  const v = getVenezuelaDate();
-  return `${String(v.hours).padStart(2, '0')}:${String(v.minutes).padStart(2, '0')}`;
+  const iso = vzDateFormatter.format(d || new Date());
+  const [year, month, day] = iso.split('-').map(Number);
+  const time = vzTimeFormatter.format(d || new Date());
+  const [hours, minutes] = time.split(':').map(Number);
+  return { year, month, day, hours, minutes, seconds: 0 };
 }
 
 /**
@@ -120,14 +131,15 @@ function getDateRange(fromISO, toISO) {
 }
 
 /**
- * Obtiene el inicio de la semana actual (lunes)
+ * Obtiene el inicio de la semana actual (lunes) garantizado en horario de Venezuela
  */
 function getCurrentWeekStart() {
-  const now = new Date();
-  const day = now.getDay() || 7; // 1=lun...7=dom
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - day + 1);
-  return formatDateISO(monday);
+  const todayISO = getTodayISO();
+  const [y, m, d] = todayISO.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  const day = dt.getUTCDay() || 7; // 1=lun...7=dom
+  dt.setUTCDate(dt.getUTCDate() - day + 1);
+  return dt.toISOString().slice(0, 10);
 }
 
 // ─── Lectura/Escritura de archivos diarios ─────────────────────────────
@@ -269,9 +281,10 @@ function getAvailableDays() {
  */
 function purgeOldData() {
   ensureAnalyticsDir();
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - MAX_RETENTION_DAYS);
-  const cutoffISO = formatDateISO(cutoffDate);
+  const todayISO = getTodayISO();
+  const [y, m, d] = todayISO.split('-').map(Number);
+  const cutoffDate = new Date(Date.UTC(y, m - 1, d - MAX_RETENTION_DAYS, 12, 0, 0));
+  const cutoffISO = cutoffDate.toISOString().slice(0, 10);
   
   const files = fs.readdirSync(ANALYTICS_DIR).filter(f => f.match(/^\d{4}-\d{2}-\d{2}\.json$/));
   let purgedCount = 0;
@@ -359,25 +372,31 @@ function migrateFromLegacy() {
 /**
  * Verifica si ya existe un evento client_attended para un usuario+conversación en un día
  */
-function hasAttendedToday(userId, conversationId) {
+function hasAttendedToday(userId, conversationId, username) {
   const today = getTodayISO();
   const events = loadDayEvents(today);
   return events.some(e => 
     e.type === 'client_attended' && 
-    (Number(e.userId) === Number(userId)) && 
-    e.conversationId === conversationId
+    (
+      (userId && Number(e.userId) === Number(userId)) ||
+      (username && e.username && e.username === username)
+    ) && 
+    String(e.conversationId) === String(conversationId)
   );
 }
 
 /**
  * Verifica si ya existe un evento client_attended para un usuario+conversación en un rango
  */
-function hasAttendedInRange(userId, conversationId, fromISO, toISO) {
+function hasAttendedInRange(userId, conversationId, fromISO, toISO, username) {
   const events = getEventsForDateRange(fromISO, toISO);
   return events.some(e =>
     e.type === 'client_attended' &&
-    (Number(e.userId) === Number(userId)) &&
-    e.conversationId === conversationId
+    (
+      (userId && Number(e.userId) === Number(userId)) ||
+      (username && e.username && e.username === username)
+    ) && 
+    String(e.conversationId) === String(conversationId)
   );
 }
 

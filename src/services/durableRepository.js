@@ -74,21 +74,21 @@ async function deleteSession(token) {
   await db.query('DELETE FROM app_sessions WHERE token = $1', [token]);
 }
 
-async function loadOAuthState() {
+async function loadOAuthState(tokenKey = 'meta') {
   const db = getPool();
   if (!db) return null;
-  const result = await db.query('SELECT payload FROM oauth_tokens WHERE token_key = $1', ['meta']);
+  const result = await db.query('SELECT payload FROM oauth_tokens WHERE token_key = $1', [tokenKey]);
   return result.rows[0]?.payload || null;
 }
 
-async function saveOAuthState(payload) {
+async function saveOAuthState(payload, tokenKey = 'meta') {
   const db = getPool();
   if (!db) return;
   await db.query(`
     INSERT INTO oauth_tokens (token_key, payload, updated_at)
-    VALUES ('meta', $1::jsonb, NOW())
+    VALUES ($1, $2::jsonb, NOW())
     ON CONFLICT (token_key) DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()
-  `, [JSON.stringify(payload)]);
+  `, [tokenKey, JSON.stringify(payload)]);
 }
 
 async function recordWebhookEvent(eventKey, payload) {

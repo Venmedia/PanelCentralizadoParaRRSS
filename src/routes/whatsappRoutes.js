@@ -30,56 +30,32 @@ function createWhatsAppRouter(io) {
 
   /**
    * POST /api/whatsapp/sync-chats
-   * Sincronización manual: compara las conversaciones del panel con los JIDs
-   * conocidos por Baileys y elimina las que ya no existen en WhatsApp.
-   *
-   * Lógica de seguridad: si knownJids está vacío (ej: Baileys recién reconectó
-   * y aún no ha recibido el listado), NO elimina nada para evitar falsos positivos.
+   * Sincronización manual: verifica la salud de los sockets de WhatsApp (Agropower y Tractopower),
+   * asegura que ambos canales estén activos y retorna el desglose exacto de conversaciones.
    */
-  router.post('/sync-chats', requireAuth, requireAdmin, (req, res) => {
+  router.post('/sync-chats', requireAuth, (req, res) => {
     try {
-      const knownJids = whatsappService.getKnownJids();
+      const company = req.query.company || req.body?.company || null;
+      const agroStatus = whatsappService.getStatus('agro');
+      const tractoStatus = whatsappService.getStatus('tracto');
+
+      // Si alguna línea está desconectada pero tiene credenciales, intentar reanudarla
+      if (agroStatus.status === 'disconnected') {
+        whatsappService.startIntegrated('agro').catch(() => {});
+      }
+      if (tractoStatus.status === 'disconnected') {
+        whatsappService.startIntegrated('tracto').catch(() => {});
+      }
+
       const conversations = getConversations();
-
-      // Separar conversaciones WA de las de Meta (no tocar Instagram/FB)
-      const waConvs = conversations.filter(c =>
-        c.jid && (c.jid.includes('@s.whatsapp.net') || c.jid.includes('@lid'))
-      );
-      const nonWaConvs = conversations.filter(c =>
-        !c.jid || (!c.jid.includes('@s.whatsapp.net') && !c.jid.includes('@lid'))
-      );
-
-      if (knownJids.size === 0) {
-        // Baileys aún no ha cargado los chats — no hacer nada
-        return res.json({
-          success: false,
-          message: 'WhatsApp aún está cargando la lista de chats. Espera unos segundos y vuelve a intentarlo.',
-          removed: 0,
-          total: conversations.length
-        });
-      }
-
-      // Filtrar conversaciones WA que siguen existiendo en WhatsApp
-      const remainingWa = waConvs.filter(c => knownJids.has(c.jid));
-      const removedCount = waConvs.length - remainingWa.length;
-      const removedNames = waConvs
-        .filter(c => !knownJids.has(c.jid))
-        .map(c => c.name || c.jid);
-
-      if (removedCount > 0) {
-        const updated = [...remainingWa, ...nonWaConvs];
-        saveConversations(updated);
-        if (io) io.emit('conversations_updated', updated);
-        console.log(`[Sync] 🗑️ Eliminadas ${removedCount} conversaciones huérfanas:`, removedNames);
-      }
+      const waAgro = conversations.filter(c => c.channel === 'wa_agro' || (c.company && c.company.toLowerCase().includes('agro'))).length;
+      const waTracto = conversations.filter(c => c.channel === 'wa_tracto' || (c.company && c.company.toLowerCase().includes('tracto'))).length;
 
       res.json({
         success: true,
-        removed: removedCount,
-        removedNames,
-        remaining: remainingWa.length + nonWaConvs.length,
-        total: conversations.length,
-        knownJids: knownJids.size
+        agro: { status: agroStatus.status, count: waAgro, user: agroStatus.user },
+        tracto: { status: tractoStatus.status, count: waTracto, user: tractoStatus.user },
+        totalConversations: conversations.length
       });
     } catch (err) {
       console.error('[Sync] Error:', err);

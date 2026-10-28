@@ -218,6 +218,9 @@ async function onAuthenticatedSuccess(user, token, newCsrfToken) {
   switchView('inbox');
 
   await loadInitialData();
+  if (typeof populateAdvisorSelect === 'function') {
+    populateAdvisorSelect();
+  }
   if (typeof loadChannelsVaultStatus === 'function') {
     await loadChannelsVaultStatus();
   }
@@ -274,11 +277,6 @@ function toggleSidebar() {
         dock.classList.remove('mobile-drawer-open');
         if (backdrop) backdrop.classList.add('hidden');
       } else {
-        const sim = document.getElementById('simulatorPanel');
-        if (sim) {
-          sim.classList.remove('mobile-drawer-open');
-          sim.classList.add('hidden');
-        }
         dock.classList.add('mobile-drawer-open');
         if (backdrop) backdrop.classList.remove('hidden');
       }
@@ -286,29 +284,6 @@ function toggleSidebar() {
   } else {
     // En PC de escritorio: toggle clásico de la barra de chats
     if (leftSidebar) leftSidebar.classList.toggle('hidden');
-  }
-}
-
-function toggleSimulator() {
-  const sim = document.getElementById('simulatorPanel');
-  const backdrop = document.getElementById('mobileDrawerBackdrop');
-  if (!sim) return;
-
-  if (typeof OmniDevice !== 'undefined' && (OmniDevice.isMobile || OmniDevice.isTablet)) {
-    const isOpen = sim.classList.contains('mobile-drawer-open');
-    if (isOpen) {
-      sim.classList.remove('mobile-drawer-open');
-      sim.classList.add('hidden');
-      if (backdrop) backdrop.classList.add('hidden');
-    } else {
-      const dock = document.getElementById('ferdiumServiceDock');
-      if (dock) dock.classList.remove('mobile-drawer-open');
-      sim.classList.remove('hidden');
-      sim.classList.add('mobile-drawer-open');
-      if (backdrop) backdrop.classList.remove('hidden');
-    }
-  } else {
-    sim.classList.toggle('hidden');
   }
 }
 
@@ -361,6 +336,12 @@ function switchView(view) {
     loadUsersList();
     if (typeof loadChannelsVaultStatus === 'function') {
       loadChannelsVaultStatus();
+    }
+    if (typeof loadMetaConfigState === 'function') {
+      loadMetaConfigState();
+    }
+    if (typeof loadMetaTokensStatus === 'function') {
+      loadMetaTokensStatus();
     }
   }
 }

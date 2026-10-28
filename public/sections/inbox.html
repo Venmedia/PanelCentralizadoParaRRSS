@@ -3,7 +3,7 @@
   <!-- ===================================================================== -->
   <div id="viewInbox" class="hidden flex-1 flex overflow-hidden relative">
 
-    <!-- BACKDROP PARA GAVETAS MÓVILES (Dock y Simulador) -->
+    <!-- BACKDROP PARA GAVETAS MÓVILES (Dock) -->
     <div id="mobileDrawerBackdrop" onclick="closeAllMobileDrawers()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-30 hidden transition-opacity"></div>
 
     <!-- DOCK VERTICAL DE SERVICIOS Y WORKSPACES ESTILO FERDIUM -->
@@ -17,7 +17,7 @@
         <!-- Filtro Rápido por Workspace (Empresa) o Todos -->
         <div class="flex items-center gap-1 text-[10px]">
           <button onclick="filterChannel('all')" id="flt_all" class="flex-1 px-2 py-1 rounded-lg bg-blue-600 text-white font-bold text-center transition">
-            Todos (8)
+            Todos
           </button>
           <button onclick="filterChannel('company_agro')" id="flt_company_agro" class="flex-1 px-2 py-1 rounded-lg bg-slate-800 text-emerald-300 hover:bg-slate-700 font-bold text-center border border-emerald-800/50 transition">
             🌿 Agropower
@@ -33,6 +33,10 @@
           <button id="btnSyncInstagram" onclick="syncInstagramDirectly(false)" title="Sincronizar Instagram con Meta Graph API" class="px-2 py-1 rounded bg-slate-800 text-slate-300 hover:text-white hover:bg-pink-600/80 transition text-[11px] font-semibold flex items-center gap-1 shrink-0 border border-slate-700/60">
             <i class="fa-solid fa-rotate text-[10px]" id="iconSyncMeta"></i>
             <span class="hidden sm:inline">Sincronizar</span>
+          </button>
+          <button id="btnExportModal" onclick="openExportModal()" title="Exportación exhaustiva de conversaciones y mensajes" class="px-2 py-1 rounded bg-emerald-950/80 text-emerald-300 hover:text-white hover:bg-emerald-600 transition text-[11px] font-semibold flex items-center gap-1 shrink-0 border border-emerald-700/60">
+            <i class="fa-solid fa-file-excel text-[10px]"></i>
+            <span class="hidden sm:inline">Exportar</span>
           </button>
         </div>
       </div>
@@ -66,7 +70,7 @@
                 🌿 Agropower
               </span>
               <span id="activeChannelBadge" class="text-[9px] px-2 py-0.2 rounded font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
-                WhatsApp (Prueba)
+                WhatsApp
               </span>
               <span id="activeTimeBadge" class="hidden text-[9px] px-2 py-0.2 rounded font-mono bg-slate-800 text-slate-300 border border-slate-700 items-center gap-1">
                 <i class="fa-regular fa-clock text-[8px] text-cyan-400"></i>
@@ -74,6 +78,10 @@
               </span>
               <span id="activeSaleClosedBadge" class="hidden text-[9px] px-2 py-0.2 rounded font-extrabold bg-emerald-500 text-slate-950">
                 🏆 VENTA CERRADA
+              </span>
+              <span id="activeAttendedByBadge" class="hidden text-[9px] px-2 py-0.2 rounded font-semibold bg-blue-950 text-blue-300 border border-blue-800 items-center gap-1">
+                <i class="fa-solid fa-user-check text-[8px] text-blue-400"></i>
+                <span id="activeAttendedByText"></span>
               </span>
               <button id="activeWaitingAdvisorBadge" onclick="dismissWaitingAdvisor()" class="hidden text-[9px] px-2 py-0.5 rounded font-extrabold bg-amber-500 hover:bg-amber-400 text-slate-950 animate-pulse items-center gap-1 cursor-pointer transition shadow" title="Haz clic para marcar como atendido y apagar la alerta">
                 🔔 PIDE ASESOR (Marcar Atendido)
@@ -83,6 +91,17 @@
         </div>
 
         <div class="flex items-center space-x-2">
+          <!-- SELECTOR DE ASESOR (Jesus Eguis / Ricardo Cazorla / Asignar) -->
+          <div id="activeAdvisorBox" class="flex items-center gap-1.5 bg-slate-900 border border-blue-900/60 rounded-lg px-2.5 py-1 shadow-sm shrink-0">
+            <i class="fa-solid fa-user-tie text-[10px] text-blue-400"></i>
+            <span class="text-[10px] text-slate-300 font-semibold hidden md:inline">Asesor:</span>
+            <select id="activeAdvisorSelect" onchange="assignAdvisorToActiveChat(this.value)" class="bg-slate-950 text-blue-200 font-bold text-[10px] rounded px-1.5 py-0.5 border border-slate-700 focus:outline-none cursor-pointer" title="Asignar asesor a esta conversación para computar sus estadísticas">
+              <option value="">Sin Asignar</option>
+              <option value="Jesuse">Asesor Jesus</option>
+              <option value="rcazorla">Asesor Ricardo</option>
+            </select>
+          </div>
+
           <!-- BOTÓN PARA CERRAR VENTA (Lleva la estadística del asesor y canal) -->
           <button id="btnCloseSale" onclick="toggleCloseSale()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-2 sm:px-3 py-1 rounded-lg text-xs font-extrabold shadow flex items-center gap-1.5 transition shrink-0">
             <i class="fa-solid fa-trophy"></i>
@@ -195,8 +214,8 @@
         </div>
 
         <div id="quickRepliesBody" class="space-y-2">
-          <!-- 3 Categorías -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <!-- 4 Categorías -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
             
             <!-- Cat 1 -->
             <div class="bg-slate-950/90 border border-slate-800 rounded-lg p-2 space-y-1.5">
@@ -247,16 +266,47 @@
               <div id="customBtnsCat3" class="flex flex-wrap gap-1 empty:hidden"></div>
             </div>
 
+            <!-- Cat 4: Enviar Archivo (PC) -->
+            <div class="bg-slate-950/90 border border-slate-800 rounded-lg p-2 space-y-1.5 flex flex-col justify-between">
+              <div class="text-[10px] font-bold text-cyan-400 flex items-center gap-1 border-b border-slate-800/80 pb-1">
+                <i class="fa-solid fa-paperclip"></i> 4. Enviar Archivo (PC)
+              </div>
+              <button onclick="triggerFileUpload()" type="button" class="w-full bg-cyan-950/80 hover:bg-cyan-900 text-cyan-200 border border-cyan-700/60 px-2 py-1.5 rounded text-[10px] font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer">
+                <i class="fa-solid fa-file-arrow-up text-cyan-300"></i> Examinar PC
+              </button>
+              <div class="text-[9px] text-slate-500 text-center">Fotos, PDF, Docs, Videos</div>
+            </div>
+
           </div>
 
           <!-- Categorías adicionales creadas desde el Modal de Agregar Categoría -->
-          <div id="customCategoriesInboxGrid" class="grid grid-cols-1 md:grid-cols-3 gap-2 empty:hidden"></div>
+          <div id="customCategoriesInboxGrid" class="grid grid-cols-1 md:grid-cols-4 gap-2 empty:hidden"></div>
+        </div>
+
+        <!-- Input file oculto para cargar archivos de la PC -->
+        <input type="file" id="advisorFileInput" class="hidden" onchange="handleAdvisorFileSelected(event)" accept="*/*">
+
+        <!-- Previsualización de Archivo Adjunto -->
+        <div id="filePreviewContainer" class="hidden bg-slate-950 border border-cyan-500/50 rounded-lg p-2 flex items-center justify-between text-xs mb-1">
+          <div class="flex items-center gap-2 overflow-hidden">
+            <span id="filePreviewIcon" class="text-cyan-400 text-base shrink-0"><i class="fa-solid fa-paperclip"></i></span>
+            <div class="truncate">
+              <span id="filePreviewName" class="font-medium text-slate-200 text-xs truncate block">archivo.pdf</span>
+              <span id="filePreviewSize" class="text-[10px] text-slate-400 block">0 KB</span>
+            </div>
+          </div>
+          <button onclick="cancelAdvisorFile()" type="button" class="text-slate-400 hover:text-rose-400 p-1 text-sm transition cursor-pointer" title="Quitar archivo">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
         </div>
 
         <!-- Input libre -->
         <div class="flex items-center space-x-2 pt-1">
-          <input id="operatorInput" onkeypress="if(event.key==='Enter') operatorSendMessage()" type="text" placeholder="Escribe un mensaje libre al cliente..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
-          <button onclick="operatorSendMessage()" class="px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition shrink-0">
+          <button onclick="triggerFileUpload()" type="button" title="Adjuntar archivo desde tu PC" class="px-2.5 py-1.5 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition shrink-0 cursor-pointer">
+            <i class="fa-solid fa-paperclip text-sm"></i>
+          </button>
+          <input id="operatorInput" onkeypress="if(event.key==='Enter') operatorSendMessage()" type="text" placeholder="Escribe un mensaje libre o descripción del archivo..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+          <button onclick="operatorSendMessage()" class="px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer">
             <span class="hidden sm:inline">Enviar</span>
             <i class="fa-solid fa-paper-plane text-[10px]"></i>
           </button>
@@ -267,81 +317,45 @@
 
     <!-- COLUMNA SECUNDARIA: VISTA DIVIDIDA MULTI-CHAT ESTILO FERDIUM (SPLIT VIEW) -->
 
+  </div>
 
-
-    <!-- SIMULADOR DEL CELULAR (COMPACTO Y CLICABLE) -->
-    <div id="simulatorPanel" class="w-72 sm:w-80 border-l border-slate-800 bg-slate-900 flex flex-col shrink-0 hidden lg:flex transition-all">
-      <div class="bg-emerald-700 px-3 py-2.5 flex items-center justify-between text-white">
-        <div class="flex items-center space-x-2">
-          <i class="fa-brands fa-whatsapp text-lg"></i>
-          <div>
-            <div class="font-bold text-xs leading-tight">Simulador Omnicanal (2 Empresas)</div>
-            <div class="text-[10px] text-emerald-200">Agropower & Tractopower (8 Canales)</div>
-          </div>
+  <!-- MODAL DE EXPORTACIÓN EXHAUSTIVA DE CONVERSACIONES -->
+  <div id="exportModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-file-export text-emerald-400 text-lg"></i>
+          <h3 class="text-sm font-bold text-white">Exportación Exhaustiva de Conversaciones</h3>
         </div>
-        <button type="button" onclick="toggleSimulator()" class="lg:hidden text-white/80 hover:text-white p-1 rounded transition" title="Cerrar Simulador">
-          <i class="fa-solid fa-xmark text-sm"></i>
+        <button onclick="closeExportModal()" class="text-slate-400 hover:text-white text-base">
+          <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
 
-      <div class="p-3 flex-1 overflow-y-auto space-y-3 bg-slate-950/90 text-xs">
-        <div class="bg-slate-900 p-2 rounded border border-slate-800">
-          <label class="text-[10px] text-slate-400 block mb-1">Empresa y Canal de prueba:</label>
-          <select id="simChannel" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-emerald-400 font-semibold">
-            <optgroup label="🌿 AGROPOWER">
-              <option value="wa_agro">🟢 WA Agropower (En prueba)</option>
-              <option value="ig_agro">📸 IG: @agropower_venezuela</option>
-              <option value="tk_agro">🎵 TK: @agropower_venezuela</option>
-              <option value="fb_agro">💬 FB Messenger Agropower (Pendiente)</option>
-            </optgroup>
-            <optgroup label="🚜 TRACTOPOWER">
-              <option value="wa_tracto">🟢 WA Tractopower (En prueba)</option>
-              <option value="ig_tracto">📸 IG: @Tractopower_venezuela</option>
-              <option value="tk_tracto">🎵 TK: @tractopowervenezuela</option>
-              <option value="fb_tracto">💬 FB Messenger Tractopower (Pendiente)</option>
-            </optgroup>
-          </select>
+      <p class="text-xs text-slate-300 leading-relaxed">
+        Descarga el historial completo y bidireccional de todas las conversaciones (WhatsApp, Instagram y Facebook), incluyendo preguntas de clientes, respuestas de asesores (Asesor Jesús, Asesor Ricardo, Móvil, Bot), fechas y archivos.
+      </p>
+
+      <div class="grid grid-cols-2 gap-3 py-1">
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-center">
+          <div class="text-lg font-extrabold text-blue-400" id="exportTotalConvs">1.024</div>
+          <div class="text-[9px] text-slate-400 uppercase font-semibold">Conversaciones</div>
         </div>
-
-        <div class="space-y-2">
-          <span class="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Opciones que toca el cliente:</span>
-          
-          <button onclick="simulateCustomerClick('Catálogo de modelos')" class="w-full text-left bg-slate-900 hover:bg-emerald-950/80 border border-emerald-600/40 text-emerald-300 p-2 rounded-lg transition flex items-center justify-between">
-            <span>📄 Catálogo de modelos (Envía PDF)</span>
-            <i class="fa-solid fa-chevron-right text-[10px]"></i>
-          </button>
-
-          <button onclick="simulateCustomerClick('Repuestos')" class="w-full text-left bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 p-2 rounded-lg transition flex items-center justify-between">
-            <span>🔧 Repuestos</span>
-            <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
-          </button>
-
-          <button onclick="simulateCustomerClick('Garantía')" class="w-full text-left bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 p-2 rounded-lg transition flex items-center justify-between">
-            <span>🛡️ Garantía</span>
-            <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
-          </button>
-
-          <button onclick="simulateCustomerClick('Precio de los modelos')" class="w-full text-left bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 p-2 rounded-lg transition flex items-center justify-between">
-            <span>💰 Precio de los modelos</span>
-            <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
-          </button>
-
-          <button onclick="simulateCustomerClick('Sistema de financiamiento')" class="w-full text-left bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 p-2 rounded-lg transition flex items-center justify-between">
-            <span>💳 Sistema de financiamiento</span>
-            <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
-          </button>
-
-          <button onclick="simulateCustomerClick('Compras programadas')" class="w-full text-left bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 p-2 rounded-lg transition flex items-center justify-between">
-            <span>📦 Compras programadas</span>
-            <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
-          </button>
-
-          <button onclick="simulateCustomerClick('Hablar con un asesor')" class="w-full text-left bg-purple-950/60 hover:bg-purple-900/80 border border-purple-600/50 text-purple-200 p-2 rounded-lg font-semibold transition flex items-center justify-between">
-            <span>🧑‍💼 Hablar con un asesor</span>
-            <i class="fa-solid fa-bell text-amber-400 animate-pulse"></i>
-          </button>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-center">
+          <div class="text-lg font-extrabold text-emerald-400" id="exportTotalMsgs">4.822</div>
+          <div class="text-[9px] text-slate-400 uppercase font-semibold">Mensajes Bidireccionales</div>
         </div>
       </div>
-    </div>
 
+      <div class="flex flex-col sm:flex-row gap-2.5 pt-2">
+        <button onclick="downloadExportFile('csv')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow cursor-pointer">
+          <i class="fa-solid fa-file-csv text-base"></i>
+          <span>Descargar Excel (CSV)</span>
+        </button>
+        <button onclick="downloadExportFile('json')" class="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow cursor-pointer">
+          <i class="fa-solid fa-code text-base text-cyan-400"></i>
+          <span>Descargar JSON</span>
+        </button>
+      </div>
+    </div>
   </div>

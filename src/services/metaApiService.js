@@ -457,13 +457,32 @@ function processWebhookEntry(entry) {
     const events = (entry.messaging || []).concat(entry.standby || []);
 
     for (const event of events) {
+        if (event.postback) {
+            messages.push({
+                platform: 'facebook',
+                senderId: event.sender?.id || '',
+                recipientId: event.recipient?.id || '',
+                text: event.postback.title || event.postback.payload || '',
+                timestamp: event.timestamp || Date.now(),
+                messageId: event.postback.mid || `pb_${Date.now()}`,
+                isEcho: false,
+                attachments: []
+            });
+            continue;
+        }
+
         if (!event.message) continue;
+
+        let msgText = event.message?.text || '';
+        if (!msgText && event.message?.quick_reply?.payload) {
+            msgText = event.message.quick_reply.payload;
+        }
 
         messages.push({
             platform: 'facebook',
             senderId: event.sender?.id || '',
             recipientId: event.recipient?.id || '',
-            text: event.message?.text || '',
+            text: msgText,
             timestamp: event.timestamp || Date.now(),
             messageId: event.message?.mid || `fb_${Date.now()}`,
             isEcho: Boolean(event.message?.is_echo),
@@ -605,10 +624,16 @@ function saveMetaConversations(data) {
  */
 function getOrCreateMetaConversation(senderId, platform, channelKey, senderName) {
     const store = loadMetaConversations();
-    const chatId = `${platform === 'instagram' ? 'ig' : 'fb'}:${senderId}`;
+    const effectiveChannelKey = channelKey || (platform === 'instagram' ? 'ig_agro' : 'fb_agro');
+    const isTracto = effectiveChannelKey.includes('tracto');
+    const company = isTracto ? 'Tractopower' : 'Agropower';
+
+    // Aislamiento estricto de conversaciones por empresa y canal
+    const legacyChatId = `${platform === 'instagram' ? 'ig' : 'fb'}:${senderId}`;
+    const scopedChatId = `${effectiveChannelKey}:${senderId}`;
+    const chatId = isTracto ? scopedChatId : (store.chats[scopedChatId] ? scopedChatId : legacyChatId);
 
     if (!store.chats[chatId]) {
-        const company = channelKey?.includes('agro') ? 'Agropower' : 'Tractopower';
         const initials = (senderName || 'U').replace(/[^a-zA-Z0-9]/g, '').substring(0, 2).toUpperCase() || 'MT';
 
         store.chats[chatId] = {
@@ -616,8 +641,8 @@ function getOrCreateMetaConversation(senderId, platform, channelKey, senderName)
             name: senderName || `Usuario ${platform}`,
             initials,
             platform,
-            channelKey: channelKey || (platform === 'instagram' ? 'ig_agro' : 'fb_agro'),
-            channel: channelKey || (platform === 'instagram' ? 'ig_agro' : 'fb_agro'),
+            channelKey: effectiveChannelKey,
+            channel: effectiveChannelKey,
             company,
             senderId,
             profilePic: null,
@@ -628,7 +653,7 @@ function getOrCreateMetaConversation(senderId, platform, channelKey, senderName)
             saleClosed: false
         };
         saveMetaConversations(store);
-        console.log(`[MetaAPI] 🆕 Nueva conversación ${platform}: ${chatId} (${senderName || 'Desconocido'})`);
+        console.log(`[MetaAPI] 🆕 Nueva conversación ${platform} (${company}): ${chatId} (${senderName || 'Desconocido'})`);
     } else {
         // Si la conversación tenía un nombre genérico ("Usuario instagram") y ahora tenemos un nombre real, actualizarlo
         if (senderName && !senderName.startsWith('Usuario ') && store.chats[chatId].name.startsWith('Usuario ')) {
@@ -642,7 +667,7 @@ function getOrCreateMetaConversation(senderId, platform, channelKey, senderName)
 }
 
 /**
- * Agrega un mensaje a una conversación de Meta
+ * Agrega un mensaje a una conversación de Meta respetando la fecha y hora REAL de llegada
  */
 function addMessageToMetaConversation(chatId, message) {
     const store = loadMetaConversations();
@@ -653,20 +678,55 @@ function addMessageToMetaConversation(chatId, message) {
         return store.chats[chatId];
     }
 
-    const now = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const msgTimestamp = message.timestamp ? Number(message.timestamp) : Date.now();
+    const msgTime = message.time || new Date(msgTimestamp).toLocaleString('es-VE', {
+        timeZone: 'America/Caracas',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+
     if (message.sender === 'operator') {
         store.chats[chatId].waitingAdvisor = false;
         store.chats[chatId].botActive = false;
+        store.chats[chatId].isRead = true;
+        store.chats[chatId].unreadCount = 0;
+        if (message.operatorName) {
+            store.chats[chatId].attendedByName = message.operatorName;
+        }
+        if (message.operatorUser) {
+            store.chats[chatId].attendedBy = message.operatorUser;
+        }
+    } else {
+        store.chats[chatId].isRead = false;
+        store.chats[chatId].unreadCount = (store.chats[chatId].unreadCount || 0) + 1;
     }
-    store.chats[chatId].messages.push({
+
+    const newMsg = {
+        from: message.from || (message.sender === 'operator' ? 'operator' : 'client'),
         sender: message.sender || 'client',
         text: message.text || '',
-        time: message.time || now,
+        time: msgTime,
+        timestamp: msgTimestamp,
         platform: message.platform || 'unknown',
         messageId: message.messageId || `msg_${Date.now()}`,
-        operatorName: message.operatorName || (message.sender === 'operator' ? 'Asesor' : undefined)
-    });
-    store.chats[chatId].time = now;
+        operatorName: message.operatorName || (message.sender === 'operator' ? 'Asesor' : undefined),
+        operatorUser: message.operatorUser
+    };
+    if (message.mediaType && message.mediaUrl) {
+        newMsg.mediaType = message.mediaType;
+        newMsg.mediaUrl = message.mediaUrl;
+        newMsg.mediaLabel = message.mediaLabel;
+    }
+    store.chats[chatId].messages.push(newMsg);
+
+    // Ordenar mensajes cronológicamente
+    store.chats[chatId].messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    const lastMsg = store.chats[chatId].messages[store.chats[chatId].messages.length - 1];
+    store.chats[chatId].time = lastMsg.time;
+    store.chats[chatId].timestamp = lastMsg.timestamp || msgTimestamp;
 
     saveMetaConversations(store);
     return store.chats[chatId];
@@ -675,14 +735,24 @@ function addMessageToMetaConversation(chatId, message) {
 /**
  * Convierte un string de fecha/hora de cualquier canal (WhatsApp, Instagram, TikTok, Facebook)
  * a milisegundos para ordenar estrictamente de más nueva a más vieja.
+ * Prioriza el timestamp real de la conversación si está disponible.
  * @param {string} timeStr
  * @param {Object} [conv]
  * @returns {number}
  */
 function parseTimestampToMs(timeStr, conv) {
-    if (!timeStr && conv && Array.isArray(conv.messages) && conv.messages.length > 0) {
+    if (conv && conv.timestamp && typeof conv.timestamp === 'number' && conv.timestamp > 1500000000000) {
+        return conv.timestamp;
+    }
+
+    if (conv && Array.isArray(conv.messages) && conv.messages.length > 0) {
         const lastMsg = conv.messages[conv.messages.length - 1];
-        timeStr = lastMsg ? lastMsg.time : null;
+        if (lastMsg && lastMsg.timestamp && typeof lastMsg.timestamp === 'number' && lastMsg.timestamp > 1500000000000) {
+            return lastMsg.timestamp;
+        }
+        if (!timeStr) {
+            timeStr = lastMsg ? lastMsg.time : null;
+        }
     }
 
     if (!timeStr) {
@@ -739,6 +809,7 @@ function parseTimestampToMs(timeStr, conv) {
     }
 
     // Caso 4: Solo hora (ej: "10:55 a. m." o "08:31 p. m.")
+    // NO asumir 'hoy' sin fecha conocida; usar conv.id si es timestamp numérico o 0 para evitar saltos
     const timeOnlyMatch = cleanStr.match(/^(\d+):(\d+)(?::(\d+))?\s*(a\.?\s*m\.?|p\.?\s*m\.?|am|pm)?$/i);
     if (timeOnlyMatch) {
         let h = parseInt(timeOnlyMatch[1], 10);
@@ -748,12 +819,12 @@ function parseTimestampToMs(timeStr, conv) {
         if (ampm.startsWith('p') && h < 12) h += 12;
         if (ampm.startsWith('a') && h === 12) h = 0;
 
-        let baseDate = new Date();
         if (conv && typeof conv.id === 'number' && conv.id > 1700000000000) {
-            baseDate = new Date(conv.id);
+            const baseDate = new Date(conv.id);
+            const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), h, m, s);
+            if (!isNaN(d.getTime())) return d.getTime();
         }
-        const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), h, m, s);
-        if (!isNaN(d.getTime())) return d.getTime();
+        return 0;
     }
 
     const fallback = new Date(cleanStr);
@@ -832,18 +903,32 @@ async function syncInstagramRecentConversations(io) {
             const companyName = company === 'tracto' ? 'Tractopower' : 'Agropower';
 
             try {
-                // Consultar los 20 hilos más recientes
-                const url = `${GRAPH_API_BASE}/${igBusinessId}/conversations?fields=id,updated_time,participants,messages.limit(15){id,message,created_time,from}&limit=20&access_token=${pageToken}`;
-                const res = await fetch(url);
-                const data = await res.json();
+                // Consultar directamente los hilos más recientes sin saturar el endpoint con mensajes anidados
+                let url = `${GRAPH_API_BASE}/${igBusinessId}/conversations?fields=id,updated_time,participants&limit=10&access_token=${pageToken}`;
+                let res = await fetch(url);
+                let data = await res.json();
 
                 if (data.error) {
-                    console.warn(`[MetaSync] Error consultando IG ${igBusinessId} (${company}):`, data.error.message);
+                    if (!global._metaSyncLoggedError || global._metaSyncLoggedError !== data.error.message) {
+                        console.warn(`[MetaSync] Nota IG ${igBusinessId} (${company}):`, data.error.message);
+                        global._metaSyncLoggedError = data.error.message;
+                    }
                     continue;
                 }
+                global._metaSyncLoggedError = null;
 
                 const threads = data.data || [];
                 totalSynced += threads.length;
+
+                for (const thread of threads) {
+                    try {
+                        const mRes = await fetch(`${GRAPH_API_BASE}/${thread.id}/messages?fields=id,message,created_time,from,to,attachments{id,mime_type,image_data,video_data,file_url}&limit=10&access_token=${pageToken}`);
+                        const mData = await mRes.json();
+                        thread.messages = mData;
+                    } catch (e) {
+                        thread.messages = { data: [] };
+                    }
+                }
 
                 for (const thread of threads) {
                     const participant = thread.participants?.data?.find(p => p.id !== igBusinessId) || thread.participants?.data?.[0];
@@ -901,6 +986,7 @@ async function syncInstagramRecentConversations(io) {
                         const exists = convRef.messages.some(m => m.messageId === rm.id);
                         if (!exists) {
                             const isOperator = rm.from?.id === igBusinessId;
+                            const msgTimestamp = new Date(rm.created_time).getTime();
                             const msgTime = new Date(rm.created_time).toLocaleString('es-VE', {
                                 timeZone: 'America/Caracas',
                                 day: '2-digit',
@@ -910,13 +996,43 @@ async function syncInstagramRecentConversations(io) {
                                 minute: '2-digit'
                             });
 
+                            let text = rm.message || '';
+                            let mediaUrl = null;
+                            let mediaType = null;
+                            let mediaLabel = null;
+
+                            if (rm.attachments?.data && rm.attachments.data.length > 0) {
+                                const att = rm.attachments.data[0];
+                                if (att.image_data) {
+                                    mediaType = 'image';
+                                    mediaUrl = att.image_data.url;
+                                    mediaLabel = '📷 Foto';
+                                } else if (att.video_data) {
+                                    mediaType = 'video';
+                                    mediaUrl = att.video_data.url;
+                                    mediaLabel = '🎥 Video';
+                                } else if (att.file_url) {
+                                    mediaType = 'document';
+                                    mediaUrl = att.file_url;
+                                    mediaLabel = '📄 Archivo';
+                                }
+                                if (!text && mediaLabel) text = mediaLabel;
+                            }
+
                             const newMsgObj = {
+                                from: isOperator ? 'operator' : 'client',
                                 sender: isOperator ? 'operator' : 'client',
-                                text: rm.message || '',
+                                origin: isOperator ? 'mobile' : undefined,
+                                text: text,
                                 time: msgTime,
+                                timestamp: msgTimestamp,
                                 platform: 'instagram',
                                 messageId: rm.id,
-                                operatorName: isOperator ? 'Móvil / Instagram App' : undefined
+                                mediaType,
+                                mediaUrl,
+                                mediaLabel,
+                                operatorName: isOperator ? '📱 Móvil / Instagram App' : undefined,
+                                operatorUser: isOperator ? 'mobile' : undefined
                             };
 
                             convRef.messages.push(newMsgObj);
@@ -935,18 +1051,13 @@ async function syncInstagramRecentConversations(io) {
                         }
                     }
 
-                    if (remoteMsgs.length > 0) {
-                        const lastRemote = remoteMsgs[remoteMsgs.length - 1];
-                        const lastTime = new Date(lastRemote.created_time).toLocaleString('es-VE', {
-                            timeZone: 'America/Caracas',
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        });
-                        if (convRef.time !== lastTime) {
-                            convRef.time = lastTime;
+                    if (convRef.messages.length > 0) {
+                        // Ordenar mensajes cronológicamente
+                        convRef.messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+                        const lastMsg = convRef.messages[convRef.messages.length - 1];
+                        if (convRef.time !== lastMsg.time || convRef.timestamp !== lastMsg.timestamp) {
+                            convRef.time = lastMsg.time;
+                            convRef.timestamp = lastMsg.timestamp;
                             hasChanges = true;
                         }
                     }

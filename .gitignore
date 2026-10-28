@@ -35,3 +35,8 @@ logs/
 npm-debug.log*
 .DS_Store
 Thumbs.db
+*.bak
+*.bak*
+*.bak_*
+report_summary.json
+public/exports/

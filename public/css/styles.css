@@ -42,20 +42,6 @@
   }
 }
 
-/* Drawer móvil para Simulador (slide-in desde la derecha con sombra profunda) */
-#simulatorPanel.mobile-drawer-open {
-  position: fixed !important;
-  top: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  z-index: 40 !important;
-  display: flex !important;
-  width: 88vw !important;
-  max-width: 360px !important;
-  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.8) !important;
-  animation: slideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
 /* Drawer móvil para Dock de Servicios Ferdium (slide-in desde la izquierda) */
 #ferdiumServiceDock.mobile-drawer-open {
   position: fixed !important;

@@ -1,3 +1,5 @@
+// Forzar zona horaria oficial del Consorcio a nivel de proceso Node.js (Venezuela / America/Caracas = UTC-4)
+process.env.TZ = 'America/Caracas';
 require('dotenv').config();
 const express = require('express');
 const http = require('http');

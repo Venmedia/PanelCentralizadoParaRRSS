@@ -136,7 +136,6 @@ const OmniDevice = {
     const leftSidebar = document.getElementById('leftSidebar');
     const activeChatSection = document.getElementById('activeChatSection');
     const btnBack = document.getElementById('btnBackToChatList');
-    const simPanel = document.getElementById('simulatorPanel');
 
     if (this.isMobile) {
       if (btnBack) btnBack.classList.remove('hidden');
@@ -148,11 +147,6 @@ const OmniDevice = {
       } else {
         if (leftSidebar) leftSidebar.classList.remove('hidden');
         if (activeChatSection) activeChatSection.classList.add('hidden');
-      }
-
-      // En móvil, el simulador no se muestra como columna fija
-      if (simPanel && !simPanel.classList.contains('mobile-drawer-open')) {
-        simPanel.classList.add('hidden');
       }
     } else {
       // En Tablet y PC: ambos visibles en paralelo
@@ -211,13 +205,8 @@ const OmniDevice = {
   },
 
   closeMobileDrawers() {
-    const simPanel = document.getElementById('simulatorPanel');
     const dock = document.getElementById('ferdiumServiceDock');
     const backdrop = document.getElementById('mobileDrawerBackdrop');
-    if (simPanel) {
-      simPanel.classList.remove('mobile-drawer-open');
-      if (this.isMobile || this.isTablet) simPanel.classList.add('hidden');
-    }
     if (dock) dock.classList.remove('mobile-drawer-open');
     if (backdrop) backdrop.classList.add('hidden');
   }
