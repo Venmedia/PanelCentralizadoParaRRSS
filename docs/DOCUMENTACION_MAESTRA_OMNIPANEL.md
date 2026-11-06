@@ -1547,3 +1547,25 @@ Se ejecutó el script de emulación integral en el entorno del VPS simulando las
   - Entrada: *"3"* o *"Quiero hablar con un asesor"* $\rightarrow$ Despacha mensaje informativo de horario, pausa el bot (`pauseBot: true`) y marca la conversación como `waitingAdvisor: true` (alerta visual en el panel).
 * **Conectividad de WhatsApp:**
   - Ambas líneas (Agropower: `584228333876` y Tractopower: `584249578682`) operativas y conectadas al 100%.
+
+---
+
+## 28. INTEGRACIÓN DE TIKTOK DIRECT MESSAGES (VÍA BROWSER BRIDGE Y COOKIES DE SESIÓN)
+
+### 28.1. Contexto y Justificación de Arquitectura
+La API oficial de TikTok para desarrolladores restringe de forma estricta los mensajes privados (Direct Messages) a cuentas de empresa aprobadas mediante verificación mercantil corporativa (documentos legales de la empresa). Para evitar la paralización operativa por falta de papeles legales en mano, OmniPanel implementó una solución de nivel empresarial basada en **Browser Bridge Headless con Playwright Chromium**:
+
+1. **Autenticación sin Captchas:** Se inyectan las cookies oficiales de sesión activa (`sessionid`, `sid_guard`, `uid_tt`, `odin_tt`, `store-idc`, etc.) exportadas desde la sesión web verificada de `@agropower_venezuela`.
+2. **Entorno de Ejecución en VPS:** Se ejecuta Chromium con perfil aislado persistente (`/opt/omnipanel-consorcio/data/tiktok_sessions/tk_agro`) en el servidor Ubuntu (8 GB RAM).
+3. **Acceso a Business Suite de Mensajería:** Navega directamente a `https://www.tiktok.com/messages?allow_label=true&lang=es&scene=business`.
+4. **Sincronización Bidireccional:**
+   - **Lectura/Ingesta:** Extrae en tiempo real todos los hilos, contactos, últimos mensajes, fecha/hora oficial de Caracas y estado de lectura, integrándolos en `conversations.json`.
+   - **Envío/Respuesta:** Los operadores responden directamente desde la interfaz de OmniPanel; el servicio localiza el chat del usuario en TikTok y escribe en el input nativo enviando el mensaje al instante.
+5. **Ciclo de Auto-Sincronización:** Cada 25 segundos un loop de fondo sondea la bandeja de entrada para detectar nuevos mensajes y emitir notificaciones Socket.IO `conversations_updated` a todos los asesores conectados.
+
+### 28.2. Ficheros y Rutas Clave
+* `src/services/tiktokBridgeService.js`: Motor central del puente Playwright (inyección de cookies, extracción DOM, envío y auto-sync).
+* `data/tiktok_cookies.txt`: Archivo de cookies de sesión autenticadas.
+* `public/js/state.js`: Metadatos del canal `tk_agro` (icono `fa-tiktok`, estilos cyan).
+* `public/js/inbox.js`: Normalización de visualización de nombres y badges en cabecera (`🎵 @contacto`).
+* `server.js`: Inicialización automática del puente en el arranque de PM2.

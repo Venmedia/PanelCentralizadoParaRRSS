@@ -701,7 +701,8 @@ function addMessageToMetaConversation(chatId, message) {
         }
     } else {
         store.chats[chatId].isRead = false;
-        store.chats[chatId].unreadCount = (store.chats[chatId].unreadCount || 0) + 1;
+        store.chats[chatId].unreadCount = 1;
+        store.chats[chatId].waitingAdvisor = true;
     }
 
     const newMsg = {
@@ -842,7 +843,8 @@ function getMetaConversationsAsArray() {
         id: chat.id,
         jid: null,
         phone: null,
-        formattedPhone: null
+        formattedPhone: null,
+        unreadCount: (chat.unreadCount && chat.unreadCount > 0) ? 1 : 0
     }));
     arr.sort((a, b) => parseTimestampToMs(b.time, b) - parseTimestampToMs(a.time, a));
     return arr;

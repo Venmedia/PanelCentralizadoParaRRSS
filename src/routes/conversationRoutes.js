@@ -15,7 +15,7 @@ const {
 } = require('../services/storageService');
 const analyticsService = require('../services/analyticsService');
 const { evaluateSchedule } = require('../services/scheduleService');
-const { updateAdvisorSessionActivity } = require('../services/sessionService');
+const { updateAdvisorSessionActivity, getSessionFromRequest } = require('../services/sessionService');
 const { getMetaConversationsAsArray, parseTimestampToMs } = require('../services/metaApiService');
 const exportService = require('../services/exportService');
 
@@ -33,7 +33,16 @@ function createConversationRouter(io) {
 
   // Obtener todas las conversaciones activas (WhatsApp, Instagram, TikTok, Facebook Messenger)
   // ordenadas estrictamente por fecha de la más nueva a la más vieja
+  // Cache ligera en memoria por 1.5s para peticiones ultra-frecuentes / concurrentes
+  let cachedConvs = null;
+  let cachedTime = 0;
+
   router.get('/conversations', requireAuth, (req, res) => {
+    const now = Date.now();
+    if (cachedConvs && (now - cachedTime < 1500) && !req.query.fresh) {
+      return res.json(cachedConvs);
+    }
+
     const waConvs = getConversations();
     let metaConvs = [];
     try {
@@ -42,7 +51,16 @@ function createConversationRouter(io) {
       console.warn('[Conversations] Error obteniendo conversaciones de Meta:', e.message);
     }
     const combined = [...waConvs, ...metaConvs];
-    combined.sort((a, b) => parseTimestampToMs(b.time, b) - parseTimestampToMs(a.time, a));
+    for (let i = 0; i < combined.length; i++) {
+      const c = combined[i];
+      if (typeof c._ts !== 'number') {
+        c._ts = parseTimestampToMs(c.time, c);
+      }
+    }
+    combined.sort((a, b) => (b._ts || 0) - (a._ts || 0));
+
+    cachedConvs = combined;
+    cachedTime = now;
     res.json(combined);
   });
 
@@ -402,50 +420,70 @@ function createConversationRouter(io) {
   });
 
   // Marcar conversación como LEÍDA (apagar badge sin leer y poner contador a 0)
-  router.post('/conversations/read/:id', requireAuth, (req, res) => {
+  router.post('/conversations/read/:id', (req, res) => {
+    const session = typeof getSessionFromRequest === 'function' ? getSessionFromRequest(req) : null;
+    const users = loadUsers();
+    const authUser = session ? users.find(u => u.id === Number(session.userId)) : (req.authUser || null);
     const id = req.params.id;
+    let handled = false;
+
+    // 1. Buscar en conversations.json (WhatsApp y TikTok)
     const conversations = getConversations();
     const conv = conversations.find(c => String(c.id) === String(id));
     if (conv) {
       conv.isRead = true;
       conv.unreadCount = 0;
+      conv.waitingAdvisor = false;
       conv.lastReadAt = getNowVE();
-      if (req.authUser) {
-        conv.lastReadBy = req.authUser.username;
+      if (authUser) {
+        conv.lastReadBy = authUser.username;
       }
       saveConversations(conversations);
+      handled = true;
       if (io) {
-        io.emit('conversation_read', { id: conv.id, username: req.authUser?.username });
+        io.emit('conversation_read', { id: conv.id, username: authUser?.username, channel: conv.channel });
+        io.emit('conversations_updated', conversations);
       }
-      return res.json({ success: true, id: conv.id });
+      return res.json({ success: true, id: conv.id, handled: true });
     }
 
-    // Buscar si es un chat de Meta (Instagram / Facebook)
+    // 2. Buscar en metaConversations.json (Instagram y Facebook Messenger)
     try {
-      const fs = require('fs');
       const { PATHS } = require('../config/constants');
       if (fs.existsSync(PATHS.META_CONVERSATIONS_FILE)) {
         const metaStore = JSON.parse(fs.readFileSync(PATHS.META_CONVERSATIONS_FILE, 'utf8'));
         let found = false;
+        let foundChat = null;
         for (const [k, c] of Object.entries(metaStore.chats || {})) {
           if (String(c.id) === String(id) || k === String(id)) {
             c.isRead = true;
             c.unreadCount = 0;
+            c.waitingAdvisor = false;
+            c.lastReadAt = getNowVE();
+            if (authUser) {
+              c.lastReadBy = authUser.username;
+            }
             found = true;
+            foundChat = c;
             break;
           }
         }
         if (found) {
           fs.writeFileSync(PATHS.META_CONVERSATIONS_FILE, JSON.stringify(metaStore, null, 2), 'utf8');
+          handled = true;
           if (io) {
-            io.emit('conversation_read', { id, username: req.authUser?.username });
+            io.emit('conversation_read', { id, username: authUser?.username, channel: foundChat?.channel });
+            const metaConvs = getMetaConversationsAsArray();
+            io.emit('meta_conversations_updated', metaConvs);
           }
-          return res.json({ success: true, id });
+          return res.json({ success: true, id, handled: true });
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('[Conversations] Error marcando chat Meta como leído:', e);
+    }
 
-    res.json({ success: true, id });
+    res.json({ success: true, id, handled: false });
   });
 
   // Marcar o desmarcar "Cerrar Venta / Venta Cerrada" en una conversación

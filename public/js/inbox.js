@@ -7,12 +7,20 @@ async function loadInitialData() {
     const res = await fetch('/api/conversations');
     conversations = await res.json();
 
-    // Cargar conversaciones de Meta (Instagram DMs + Facebook Messenger)
-    await loadMetaConversationsIntoInbox();
+    for (let i = 0; i < conversations.length; i++) {
+      if (typeof conversations[i]._ts !== 'number') {
+        conversations[i]._ts = parseTimestampToMs(conversations[i].time, conversations[i]);
+      }
+    }
 
     sortConversationsDesc(conversations);
-    renderChatList();
-    if (conversations.length > 0) selectConversation(conversations[0].id);
+    
+    renderChatList(true);
+    initChatListInfiniteScroll();
+
+    if (conversations.length > 0) {
+      selectConversation(conversations[0].id);
+    }
   } catch (e) {
     console.log('Modo local / estático');
   }
@@ -77,6 +85,11 @@ async function loadMetaConversationsIntoInbox() {
  */
 function mergeMetaConversation(metaConv) {
   if (!metaConv || !metaConv.id) return;
+  if (activeChatId && String(metaConv.id) === String(activeChatId)) {
+    metaConv.isRead = true;
+    metaConv.unreadCount = 0;
+    metaConv.waitingAdvisor = false;
+  }
   const idx = conversations.findIndex(c => String(c.id) === String(metaConv.id));
   if (idx !== -1) {
     conversations[idx] = metaConv;
@@ -84,7 +97,7 @@ function mergeMetaConversation(metaConv) {
     conversations.push(metaConv);
   }
   sortConversationsDesc(conversations);
-  renderChatList();
+  renderChatList(true);
   if (typeof renderFerdiumServiceDock === 'function') {
     renderFerdiumServiceDock();
   }
@@ -101,6 +114,11 @@ function mergeAllMetaConversations(metaConvs) {
   if (!Array.isArray(metaConvs)) return;
   for (const mc of metaConvs) {
     if (!mc || !mc.id) continue;
+    if (activeChatId && String(mc.id) === String(activeChatId)) {
+      mc.isRead = true;
+      mc.unreadCount = 0;
+      mc.waitingAdvisor = false;
+    }
     const idx = conversations.findIndex(c => String(c.id) === String(mc.id));
     if (idx !== -1) {
       conversations[idx] = mc;
@@ -250,11 +268,13 @@ function parseTimestampToMs(timeStr, conv) {
  */
 function sortConversationsDesc(convArray) {
   if (!Array.isArray(convArray)) return [];
-  return convArray.sort((a, b) => {
-    const ta = parseTimestampToMs(a ? a.time : null, a);
-    const tb = parseTimestampToMs(b ? b.time : null, b);
-    return tb - ta;
-  });
+  for (let i = 0; i < convArray.length; i++) {
+    const c = convArray[i];
+    if (c && typeof c._ts !== 'number') {
+      c._ts = parseTimestampToMs(c.time, c);
+    }
+  }
+  return convArray.sort((a, b) => ((b && b._ts) || 0) - ((a && a._ts) || 0));
 }
 
 /**
@@ -331,32 +351,196 @@ function getChatAvatarInitials(c) {
   return defaultInitials;
 }
 
-function renderChatList() {
-  const container = document.getElementById('chatListContainer');
-  const search = document.getElementById('searchInput').value.toLowerCase();
-  container.innerHTML = '';
-
-  // Ordenar conversaciones en el array global: más recientes primero según su fecha y hora real
-  sortConversationsDesc(conversations);
-
-  conversations.forEach(c => {
+/**
+ * Retorna la cantidad de conversaciones sin leer o pendientes de atención
+ * para el canal o workspace actualmente seleccionado.
+ */
+function getUnreadConversationsCountForCurrentFilter() {
+  if (!Array.isArray(conversations)) return 0;
+  return conversations.filter(c => {
     const meta = channelMeta[c.channel] || channelMeta['wa_agro'];
-    const displayPhone = getDisplayPhoneForChat(c);
-    const chatTitle = getChatDisplayName(c);
-    const chatInitials = getChatAvatarInitials(c);
-
-    if (currentFilter === 'company_agro' && meta.company !== 'agropower') return;
-    if (currentFilter === 'company_tracto' && meta.company !== 'tractopower') return;
+    if (currentFilter === 'company_agro' && meta.company !== 'agropower') return false;
+    if (currentFilter === 'company_tracto' && meta.company !== 'tractopower') return false;
     if (
       currentFilter !== 'all' &&
       currentFilter !== 'company_agro' &&
       currentFilter !== 'company_tracto' &&
       c.channel !== currentFilter
     ) {
-      return;
+      return false;
+    }
+    return typeof isConversationUnread === 'function'
+      ? isConversationUnread(c, null)
+      : Boolean((c.unreadCount && c.unreadCount > 0) || c.isRead === false || c.waitingAdvisor);
+  }).length;
+}
+
+/**
+ * Alterna el filtro de "Solo mensajes nuevos"
+ */
+function toggleFilterUnreadOnly() {
+  filterUnreadOnly = !filterUnreadOnly;
+  renderChatList(true);
+}
+
+/**
+ * Actualiza visualmente el botón de "Solo mensajes nuevos"
+ */
+function updateFilterUnreadOnlyBtnUI() {
+  const btn = document.getElementById('btnFilterUnreadOnly');
+  const icon = document.getElementById('iconFilterUnread');
+  const label = document.getElementById('labelFilterUnread');
+  const badge = document.getElementById('badgeFilterUnreadCount');
+  if (!btn) return;
+
+  const count = getUnreadConversationsCountForCurrentFilter();
+
+  if (badge) {
+    badge.innerText = count;
+  }
+
+  if (filterUnreadOnly) {
+    btn.className = 'w-full py-1.5 px-2.5 rounded-lg text-[11px] font-extrabold flex items-center justify-between transition bg-emerald-600 text-white border border-emerald-400 shadow shadow-emerald-600/30';
+    if (icon) icon.className = 'fa-solid fa-filter-circle-check text-[10px] text-white';
+    if (label) label.innerText = 'Filtro activo: Solo mensajes nuevos';
+    if (badge) badge.className = 'px-1.5 py-0.2 rounded-full bg-white text-emerald-950 text-[10px] font-black shadow-sm';
+  } else {
+    btn.className = 'w-full py-1.5 px-2.5 rounded-lg text-[11px] font-bold flex items-center justify-between transition bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60 shadow-sm';
+    if (icon) icon.className = 'fa-solid fa-envelope text-[10px] text-emerald-400';
+    if (label) label.innerText = 'Solo mensajes nuevos';
+    if (badge) badge.className = 'px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black border border-emerald-500/40';
+  }
+}
+
+let searchDebounceTimer = null;
+function onSearchChatInput() {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    renderChatList(true);
+  }, 120);
+}
+
+
+let chatListRenderLimit = 35;
+let activeFilteredChats = [];
+
+function createChatListItemElement(c) {
+  const meta = channelMeta[c.channel] || channelMeta['wa_agro'];
+  const displayPhone = getDisplayPhoneForChat(c);
+  const chatTitle = getChatDisplayName(c);
+  const chatInitials = getChatAvatarInitials(c);
+  const lastMsg = (c.messages && c.messages.length > 0) ? c.messages[c.messages.length - 1] : null;
+
+  const isSelected = String(c.id) === String(activeChatId);
+  const isAdmin = authenticatedUser && (authenticatedUser.isAdmin || authenticatedUser.role === 'admin' || String(authenticatedUser.username).toLowerCase() === 'admin');
+
+  const isUnread = typeof isConversationUnread === 'function'
+    ? isConversationUnread(c, filterUnreadOnly ? null : activeChatId)
+    : (!isSelected && ((typeof c.unreadCount === 'number' && c.unreadCount > 0) || c.isRead === false || c.waitingAdvisor === true));
+
+  const item = document.createElement('div');
+  item.className = `relative group transition cursor-pointer ${
+    isSelected
+      ? 'bg-slate-800/90 border-l-4 border-blue-500'
+      : (isUnread
+          ? 'bg-slate-900/95 border-l-4 border-emerald-500 hover:bg-slate-800/60 shadow-sm'
+          : 'hover:bg-slate-800/40')
+  }`;
+  item.onclick = (e) => {
+    if (e.target.closest('button')) return;
+    selectConversation(c.id);
+  };
+
+  const deleteBtn = isAdmin ? `
+    <button
+      onclick="event.stopPropagation(); deleteConversation('${c.id}', '${(chatTitle || '').replace(/'/g, "\\'")}')"
+      class="absolute top-1.5 right-1.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded-full bg-rose-900/80 hover:bg-rose-600 border border-rose-700 flex items-center justify-center text-[9px] text-rose-300 hover:text-white"
+      title="Eliminar conversación del panel">
+      <i class="fa-solid fa-xmark"></i>
+    </button>` : '';
+
+  const lastMsgText = (lastMsg && typeof lastMsg.text === 'string')
+    ? lastMsg.text.replace(/\n/g, ' ')
+    : (lastMsg?.mediaLabel || '');
+
+  const innerContent = `
+    <div class="p-2.5 flex items-start space-x-2.5">
+      <div class="relative shrink-0">
+        <div class="w-8 h-8 rounded-full ${isUnread ? 'bg-slate-700 border-2 border-emerald-400 text-white' : 'bg-slate-800 border border-slate-700 text-slate-200'} flex items-center justify-center font-bold text-[10px]">
+          ${chatInitials}
+        </div>
+        <span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-slate-950 flex items-center justify-center text-[9px]">
+          <i class="fa-brands ${meta.icon}"></i>
+        </span>
+        ${isUnread ? '<span class="absolute -top-0.5 -left-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-slate-950 shadow animate-pulse" title="Nuevo mensaje sin leer"></span>' : ''}
+      </div>
+      <div class="flex-1 min-w-0 pr-4">
+        <div class="flex justify-between items-start gap-1">
+          <span class="${isUnread ? 'font-black text-white' : 'font-bold text-slate-200'} text-[11px] truncate">${chatTitle}</span>
+          <div class="flex flex-col items-end shrink-0 gap-1">
+            <span class="text-[9px] ${isUnread ? 'text-emerald-400 font-bold' : 'text-slate-400 font-mono'}">${formatConversationTimestamp(c.time)}</span>
+            ${isUnread ? `
+              <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-500 text-slate-950 font-black text-[10px] flex items-center justify-center shadow shadow-emerald-500/40 shrink-0" title="Conversación con mensajes nuevos">
+                1
+              </span>` : ''}
+          </div>
+        </div>
+        ${
+          displayPhone
+            ? `<div class="text-[10px] font-mono text-emerald-400 font-bold flex items-center gap-1 mt-0.5">
+                 <i class="fa-solid fa-phone text-[8px]"></i>
+                 <span>${displayPhone}</span>
+               </div>`
+            : (c.platform === 'instagram'
+                ? `<div class="text-[10px] text-pink-400 font-semibold flex items-center gap-1 mt-0.5">
+                     <i class="fa-brands fa-instagram text-[9px]"></i>
+                     <span>${chatTitle}</span>
+                   </div>`
+                : '')
+        }
+        <div class="text-[10px] ${isUnread ? 'text-slate-200 font-semibold' : 'text-slate-400'} truncate mt-0.5">${lastMsgText}</div>
+        <div class="flex items-center gap-1 mt-1 flex-wrap">
+          <span class="text-[8px] px-1.5 py-0.2 rounded border ${meta.companyBadgeClass} font-bold">${meta.companyName}</span>
+          <span class="text-[8px] px-1.5 py-0.2 rounded border ${meta.badgeClass} font-semibold">${meta.label}</span>
+          ${c.attendedByName || c.attendedBy ? `<span class="text-[8px] px-1.5 py-0.2 rounded bg-slate-800 text-blue-300 border border-blue-900 font-semibold" title="Atendido por"><i class="fa-solid fa-user-check text-[7px] mr-0.5"></i>${c.attendedByName || c.attendedBy}</span>` : ''}
+          ${c.saleClosed ? '<span class="text-[8px] bg-emerald-500 text-slate-950 font-extrabold px-1.5 py-0.2 rounded">🏆 VENTA CERRADA</span>' : ''}
+          ${c.waitingAdvisor ? '<span class="text-[8px] bg-amber-500 text-slate-950 font-extrabold px-1.5 py-0.2 rounded animate-pulse">🔔 PIDE ASESOR</span>' : ''}
+        </div>
+      </div>
+    </div>
+  `;
+
+  item.innerHTML = deleteBtn + innerContent;
+  return item;
+}
+
+function renderChatList(resetLimit = false) {
+  if (resetLimit) {
+    chatListRenderLimit = 35;
+  }
+  const container = document.getElementById('chatListContainer');
+  if (!container) return;
+  const search = document.getElementById('searchInput') ? document.getElementById('searchInput').value.toLowerCase().trim() : '';
+
+  // Ordenar de forma ultrarrápida usando timestamps numéricos en memoria (<1ms)
+  sortConversationsDesc(conversations);
+
+  activeFilteredChats = conversations.filter(c => {
+    const meta = channelMeta[c.channel] || channelMeta['wa_agro'];
+    const displayPhone = getDisplayPhoneForChat(c);
+    const chatTitle = getChatDisplayName(c);
+
+    if (currentFilter === 'company_agro' && meta.company !== 'agropower') return false;
+    if (currentFilter === 'company_tracto' && meta.company !== 'tractopower') return false;
+    if (
+      currentFilter !== 'all' &&
+      currentFilter !== 'company_agro' &&
+      currentFilter !== 'company_tracto' &&
+      c.channel !== currentFilter
+    ) {
+      return false;
     }
 
-    const lastMsg = c.messages[c.messages.length - 1];
     if (
       search &&
       !chatTitle.toLowerCase().includes(search) &&
@@ -366,100 +550,109 @@ function renderChatList() {
       !(meta.companyName || '').toLowerCase().includes(search) &&
       !(meta.label || '').toLowerCase().includes(search)
     ) {
-      return;
+      return false;
     }
 
     const isSelected = String(c.id) === String(activeChatId);
-    const isAdmin = authenticatedUser && (authenticatedUser.isAdmin || authenticatedUser.role === 'admin' || String(authenticatedUser.username).toLowerCase() === 'admin');
+    const isUnread = typeof isConversationUnread === 'function'
+      ? isConversationUnread(c, filterUnreadOnly ? null : activeChatId)
+      : (!isSelected && ((typeof c.unreadCount === 'number' && c.unreadCount > 0) || c.isRead === false || c.waitingAdvisor === true));
 
-    // Identificar si la conversación está sin leer (al estilo WhatsApp)
-    const isUnread = !isSelected && (
-      (typeof c.unreadCount === 'number' && c.unreadCount > 0) ||
-      c.isRead === false ||
-      c.waitingAdvisor === true ||
-      (lastMsg && (lastMsg.sender === 'client' || lastMsg.from === 'client') && c.isRead !== true)
-    );
-    const unreadCountNum = (c.unreadCount && c.unreadCount > 0) ? c.unreadCount : 1;
+    if (filterUnreadOnly && !isUnread && String(c.id) !== String(activeChatId)) {
+      return false;
+    }
 
-    const item = document.createElement('div');
-    item.className = `relative group transition cursor-pointer ${
-      isSelected
-        ? 'bg-slate-800/90 border-l-4 border-blue-500'
-        : (isUnread
-            ? 'bg-slate-900/95 border-l-4 border-emerald-500 hover:bg-slate-800/60 shadow-sm'
-            : 'hover:bg-slate-800/40')
-    }`;
-    item.onclick = (e) => {
-      if (e.target.closest('button')) return;
-      selectConversation(c.id);
-    };
+    return true;
+  });
 
-    // Botón de eliminar (solo admin, aparece al hover)
-    const deleteBtn = isAdmin ? `
-      <button
-        onclick="event.stopPropagation(); deleteConversation('${c.id}', '${(chatTitle || '').replace(/'/g, '\\\'')}')"
-        class="absolute top-1.5 right-1.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded-full bg-rose-900/80 hover:bg-rose-600 border border-rose-700 flex items-center justify-center text-[9px] text-rose-300 hover:text-white"
-        title="Eliminar conversación del panel">
-        <i class="fa-solid fa-xmark"></i>
-      </button>` : '';
+  container.innerHTML = '';
+  const slice = activeFilteredChats.slice(0, chatListRenderLimit);
+  const frag = document.createDocumentFragment();
 
-    const innerContent = `
-      <div class="p-2.5 flex items-start space-x-2.5">
-        <div class="relative shrink-0">
-          <div class="w-8 h-8 rounded-full ${isUnread ? 'bg-slate-700 border-2 border-emerald-400 text-white' : 'bg-slate-800 border border-slate-700 text-slate-200'} flex items-center justify-center font-bold text-[10px]">
-            ${chatInitials}
-          </div>
-          <span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-slate-950 flex items-center justify-center text-[9px]">
-            <i class="fa-brands ${meta.icon}"></i>
-          </span>
-          ${isUnread ? '<span class="absolute -top-0.5 -left-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-slate-950 shadow animate-pulse" title="Nuevo mensaje sin leer"></span>' : ''}
+  slice.forEach(c => {
+    frag.appendChild(createChatListItemElement(c));
+  });
+  container.appendChild(frag);
+
+  if (chatListRenderLimit < activeFilteredChats.length) {
+    const moreEl = document.createElement('div');
+    moreEl.id = 'chatListLoadMore';
+    moreEl.className = 'py-2 text-center text-[10px] text-slate-500 font-semibold bg-slate-900/50 border-t border-slate-800/60 cursor-pointer hover:text-slate-300';
+    moreEl.onclick = appendMoreChats;
+    moreEl.innerText = `Cargando ${slice.length} de ${activeFilteredChats.length} chats • Toca o desplaza para ver más`;
+    container.appendChild(moreEl);
+  }
+
+  if (typeof updateFilterUnreadOnlyBtnUI === 'function') {
+    updateFilterUnreadOnlyBtnUI();
+  }
+
+  if (container.children.length === 0) {
+    container.innerHTML = `
+      <div class="p-8 text-center text-slate-500">
+        <div class="w-12 h-12 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center mx-auto mb-3 text-emerald-400 shadow-inner">
+          <i class="fa-solid fa-check-double text-xl"></i>
         </div>
-        <div class="flex-1 min-w-0 pr-4">
-          <div class="flex justify-between items-start gap-1">
-            <span class="${isUnread ? 'font-black text-white' : 'font-bold text-slate-200'} text-[11px] truncate">${chatTitle}</span>
-            <div class="flex flex-col items-end shrink-0 gap-1">
-              <span class="text-[9px] ${isUnread ? 'text-emerald-400 font-bold' : 'text-slate-400 font-mono'}">${formatConversationTimestamp(c.time)}</span>
-              ${isUnread ? `
-                <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-500 text-slate-950 font-black text-[10px] flex items-center justify-center shadow shadow-emerald-500/40 shrink-0" title="Mensaje sin leer">
-                  ${unreadCountNum}
-                </span>` : ''}
-            </div>
-          </div>
-          ${
-            displayPhone
-              ? `<div class="text-[10px] font-mono text-emerald-400 font-bold flex items-center gap-1 mt-0.5">
-                   <i class="fa-solid fa-phone text-[8px]"></i>
-                   <span>${displayPhone}</span>
-                 </div>`
-              : (c.platform === 'instagram'
-                  ? `<div class="text-[10px] text-pink-400 font-semibold flex items-center gap-1 mt-0.5">
-                       <i class="fa-brands fa-instagram text-[9px]"></i>
-                       <span>${chatTitle}</span>
-                     </div>`
-                  : '')
-          }
-          <div class="text-[10px] ${isUnread ? 'text-slate-200 font-semibold' : 'text-slate-400'} truncate mt-0.5">${lastMsg ? lastMsg.text.replace(/\n/g, ' ') : ''}</div>
-          <div class="flex items-center gap-1 mt-1 flex-wrap">
-            <span class="text-[8px] px-1.5 py-0.2 rounded border ${meta.companyBadgeClass} font-bold">${meta.companyName}</span>
-            <span class="text-[8px] px-1.5 py-0.2 rounded border ${meta.badgeClass} font-semibold">${meta.label}</span>
-            ${c.attendedByName || c.attendedBy ? `<span class="text-[8px] px-1.5 py-0.2 rounded bg-slate-800 text-blue-300 border border-blue-900 font-semibold" title="Atendido por"><i class="fa-solid fa-user-check text-[7px] mr-0.5"></i>${c.attendedByName || c.attendedBy}</span>` : ''}
-            ${c.saleClosed ? '<span class="text-[8px] bg-emerald-500 text-slate-950 font-extrabold px-1.5 py-0.2 rounded">🏆 VENTA CERRADA</span>' : ''}
-            ${c.waitingAdvisor ? '<span class="text-[8px] bg-amber-500 text-slate-950 font-extrabold px-1.5 py-0.2 rounded animate-pulse">🔔 PIDE ASESOR</span>' : ''}
-          </div>
-        </div>
+        <p class="text-xs font-bold text-slate-200">¡Bandeja al día!</p>
+        <p class="text-[11px] text-slate-400 mt-1 max-w-[200px] mx-auto">
+          ${filterUnreadOnly ? 'No hay conversaciones pendientes con mensajes nuevos en este canal.' : 'No se encontraron conversaciones con los filtros aplicados.'}
+        </p>
+        ${filterUnreadOnly ? `
+          <button onclick="toggleFilterUnreadOnly()" class="mt-3 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-lg text-[10px] font-bold border border-emerald-900/40 transition">
+            Ver todas las conversaciones
+          </button>` : ''}
       </div>
     `;
-
-    item.innerHTML = deleteBtn + innerContent;
-    container.appendChild(item);
-  });
+  }
 
   if (typeof renderFerdiumServiceDock === 'function') {
     renderFerdiumServiceDock();
   }
+  if (typeof updateTikTokStatusBar === 'function') {
+    updateTikTokStatusBar();
+  }
   if (typeof renderSplitConversationView === 'function') {
     renderSplitConversationView();
   }
+}
+
+function appendMoreChats() {
+  const container = document.getElementById('chatListContainer');
+  if (!container || chatListRenderLimit >= activeFilteredChats.length) return;
+
+  const prevLimit = chatListRenderLimit;
+  chatListRenderLimit = Math.min(chatListRenderLimit + 35, activeFilteredChats.length);
+  const nextSlice = activeFilteredChats.slice(prevLimit, chatListRenderLimit);
+
+  const moreEl = document.getElementById('chatListLoadMore');
+  if (moreEl) moreEl.remove();
+
+  const frag = document.createDocumentFragment();
+  nextSlice.forEach(c => {
+    frag.appendChild(createChatListItemElement(c));
+  });
+  container.appendChild(frag);
+
+  if (chatListRenderLimit < activeFilteredChats.length) {
+    const newMore = document.createElement('div');
+    newMore.id = 'chatListLoadMore';
+    newMore.className = 'py-2 text-center text-[10px] text-slate-500 font-semibold bg-slate-900/50 border-t border-slate-800/60 cursor-pointer hover:text-slate-300';
+    newMore.onclick = appendMoreChats;
+    newMore.innerText = `Cargando ${chatListRenderLimit} de ${activeFilteredChats.length} chats • Toca o desplaza para ver más`;
+    container.appendChild(newMore);
+  }
+}
+
+function initChatListInfiniteScroll() {
+  const container = document.getElementById('chatListContainer');
+  if (!container || container._hasInfiniteScroll) return;
+  container._hasInfiniteScroll = true;
+
+  container.addEventListener('scroll', () => {
+    if (container.scrollTop + container.clientHeight >= container.scrollHeight - 250) {
+      appendMoreChats();
+    }
+  }, { passive: true });
 }
 
 function selectConversation(id) {
@@ -470,10 +663,29 @@ function selectConversation(id) {
   const c = conversations.find(x => String(x.id) === String(id));
   if (!c) return;
 
+  const isTractoConv = (
+    (c.channel === 'wa_tracto') ||
+    (c.company && c.company.toLowerCase().includes('tracto')) ||
+    (c.phone && (c.phone.includes('4249578682') || c.phone.includes('424-9578682')))
+  );
+  if (typeof updateQuickRepliesUIForCompany === 'function') {
+    updateQuickRepliesUIForCompany(isTractoConv ? 'tractopower' : 'agropower');
+  }
+
   // Marcar conversación como leída inmediatamente y refrescar badges
   c.isRead = true;
   c.unreadCount = 0;
-  fetch('/api/conversations/read/' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+  c.waitingAdvisor = false;
+
+  const token = (typeof authToken === 'string' && authToken) ? authToken : (sessionStorage.getItem('omnipanel_token') || localStorage.getItem('omni_token') || '');
+  fetch('/api/conversations/read/' + encodeURIComponent(id), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    }
+  }).catch(err => console.warn('[Read] Error notificando lectura:', err));
+
   if (typeof renderFerdiumServiceDock === 'function') {
     renderFerdiumServiceDock();
   }
@@ -545,6 +757,9 @@ function selectConversation(id) {
 
   updateSaleButtonUI(c);
   updateWaitingAdvisorHeaderUI(c);
+  if (typeof updateTikTokStatusBar === 'function') {
+    updateTikTokStatusBar();
+  }
   renderMessages(c);
   renderChatList();
 
@@ -562,17 +777,6 @@ function updateWaitingAdvisorHeaderUI(c) {
     } else {
       badge.classList.add('hidden');
       badge.classList.remove('flex');
-    }
-  }
-
-  const advisorSelect = document.getElementById('activeAdvisorSelect');
-  if (advisorSelect && c) {
-    if (advisorSelect.options.length <= 1) {
-      populateAdvisorSelect().then(() => {
-        advisorSelect.value = c.attendedBy || '';
-      });
-    } else {
-      advisorSelect.value = c.attendedBy || '';
     }
   }
 }
@@ -979,28 +1183,128 @@ function renderMessages(c) {
   vp.scrollTop = vp.scrollHeight;
 }
 
+
+/**
+ * Retorna las respuestas y adjuntos programados según la empresa de la conversación.
+ * @param {'agropower'|'tractopower'} company
+ */
+function getPreprogrammedDataForCompany(company = 'agropower') {
+  const compKey = String(company || '').toLowerCase().includes('tracto') ? 'tractopower' : 'agropower';
+  const cfg = window.botConfigData || {};
+  const compCfg = cfg.companies?.[compKey] || {};
+
+  if (compKey === 'tractopower') {
+    const itemsCat1 = compCfg.categories?.catalogo_tecnico?.items || {};
+    const itemsCat2 = compCfg.categories?.costos_financiamiento?.items || {};
+    const itemsCat3 = compCfg.categories?.atencion_asesor?.items || {};
+
+    return {
+      company: 'tractopower',
+      greeting: document.getElementById('t_tracto_greeting_menu')?.value || compCfg.greeting || (typeof DEFAULT_TRACTOPOWER_GREETING_TEXT !== 'undefined' ? DEFAULT_TRACTOPOWER_GREETING_TEXT : "👋 *¡Hola! Este es nuestro sistema automatizado para atención fuera del horario laboral de Tractopower.*"),
+      cat_modelos: document.getElementById('t_tracto_cat_modelos')?.value || itemsCat1.cat_modelos?.reply || "📄 *Catálogo Oficial de Maquinaria Pesada Tractopower:* Te adjuntamos en este mensaje nuestro catálogo completo en PDF con todas las fichas técnicas y modelos disponibles (Payloaders, Retroexcavadoras, Montacargas y Jumbos).",
+      cat_modelos_attachment: document.getElementById('t_tracto_pdf_name')?.value || itemsCat1.cat_modelos?.attachment || 'catalogo_tractopower.pdf',
+      repuestos: document.getElementById('t_tracto_repuestos')?.value || itemsCat1.repuestos?.reply || "🔧 *Repuestos Originales:* Contamos con amplio stock de repuestos y consumibles originales con despacho a nivel nacional. Indícanos qué modelo tienes y qué pieza necesitas.\n\nEstas respaldado por nuestra marca en la adquisicion de cualquier repuesto que necesite tu equipo.",
+      garantia: document.getElementById('t_tracto_garantia')?.value || itemsCat1.garantia?.reply || "🛡️ *Garantía Oficial:* Todas nuestras unidades cuentan con garantía certificada de fábrica y soporte técnico directo en nuestros talleres autorizados.\n\nTodos nuestros equipos cuentan con garantía oficial de 1 año o 1,000 horas de trabajo (lo que ocurra primero), la cual incluye nuestro servicio de mantenimiento para enviar a nuestros técnicos especializados y repuestos directamente a tu unidad de producción, garantizando que tu equipo se mantenga siempre operativo sin que tengas que preocuparte por el traslado; escríbenos si deseas más información o resolver alguna duda técnica.",
+      precios: document.getElementById('t_tracto_precios')?.value || itemsCat2.precios?.reply || "💰 *Precio de los Modelos (Maquinaria Pesada Tractopower):*\n\nCon mucho gusto te compartimos los precios oficiales de nuestros equipos:\n\n🔹 Payloader 930: $52.000\n🔹 Payloader 936: $66.000\n🔹 Payloader 956: $85.800\n🔹 Retroexcavadora: $68.000\n🔹 Montacargas 10 Ton: $86.300\n🔹 Jumbos 23 Ton: $133.490\n🔹 Montacargas FD38: $21.600\n\nTodas nuestras maquinarias cuentan con garantía oficial de 1 año o 1.000 horas de trabajo.\n\nActualmente nuestras ventas se realizan únicamente de contado. Si deseas ver el catálogo completo escribe \"catalogo\" en el chat y te lo enviamos de inmediato.",
+      financiamiento: document.getElementById('t_tracto_financiamiento')?.value || itemsCat2.financiamiento?.reply || "💳 *Condiciones de Financiamiento Tractopower:*\n\nPor ahora para nuestra línea de maquinaria pesada únicamente comercializamos bajo modalidad de venta al contado. No disponemos de planes de financiamiento ni compras programadas (dichos planes aplican exclusivamente para tractores agrícolas).\n\nSi deseas adquirir o cotizar alguno de nuestros equipos de contado, un asesor comercial te atenderá de inmediato.",
+      compras_prog: document.getElementById('t_tracto_compras_prog')?.value || itemsCat2.compras_prog?.reply || "📦 *Compras Programadas:*\n\nLa modalidad de Compra Programada aplica exclusivamente para la línea de tractores agrícolas (Agropower). En maquinaria pesada Tractopower la comercialización se realiza únicamente de contado bajo disponibilidad y pedido directo.",
+      asesor: document.getElementById('t_tracto_asesor')?.value || itemsCat3.asesor?.reply || "🧑‍💼 *Atención con Asesor Tractopower:* ¡Con gusto! Te recordamos que nuestro horario de trabajo es de 8am a 5pm. Hemos notificado a uno de nuestros asesores comerciales para atender tu solicitud de maquinaria pesada personalmente a la brevedad posible. Gracias por comunicarte con nosotros.",
+      customOptions: compCfg.customOptions || []
+    };
+  } else {
+    // Agropower
+    const itemsCat1 = compCfg.categories?.catalogo_tecnico?.items || cfg.categories?.catalogo_tecnico?.items || {};
+    const itemsCat2 = compCfg.categories?.costos_financiamiento?.items || cfg.categories?.costos_financiamiento?.items || {};
+    const itemsCat3 = compCfg.categories?.atencion_asesor?.items || cfg.categories?.atencion_asesor?.items || {};
+
+    const fallbackGreeting = document.getElementById('t_agro_greeting_menu')?.value || document.getElementById('t_greeting_menu')?.value || cfg.greeting || DEFAULT_GREETING_TEXT;
+
+    return {
+      company: 'agropower',
+      greeting: compCfg.greeting || fallbackGreeting,
+      cat_modelos: document.getElementById('t_agro_cat_modelos')?.value || itemsCat1.cat_modelos?.reply || document.getElementById('t_cat_modelos')?.value || "📄 *Catálogo Oficial de Modelos:* Te adjuntamos en este mensaje nuestro catálogo completo en PDF con todas las fichas técnicas y modelos disponibles.",
+      cat_modelos_attachment: document.getElementById('t_agro_pdf_name')?.value || itemsCat1.cat_modelos?.attachment || document.getElementById('t_pdf_name')?.value || '1792614914044_5atuoj.pdf',
+      repuestos: document.getElementById('t_agro_repuestos')?.value || itemsCat1.repuestos?.reply || document.getElementById('t_repuestos')?.value || "🔧 *Repuestos Originales:* Contamos con amplio stock de repuestos y consumibles originales con despacho a nivel nacional. Indícanos qué modelo tienes y qué pieza necesitas.\n\nEstas respaldado por nuestra marca en la adquisicion de cualquier repuesto que necesite tu equipo.",
+      garantia: document.getElementById('t_agro_garantia')?.value || itemsCat1.garantia?.reply || document.getElementById('t_garantia')?.value || "🛡️ *Garantía Oficial:* Todas nuestras unidades cuentan con garantía certificada de fábrica y soporte técnico directo en nuestros talleres autorizados.\n\nTodos nuestros tractores cuentan con garantía oficial de 1 año o 1,000 horas de trabajo (lo que ocurra primero), la cual incluye nuestro servicio de mantenimiento a pie de finca para enviar a nuestros técnicos especializados y repuestos directamente a tu unidad de producción, garantizando que tu equipo se mantenga siempre operativo sin que tengas que preocuparte por el traslado; escríbenos si deseas más información o resolver alguna duda técnica.",
+      precios: document.getElementById('t_agro_precios')?.value || itemsCat2.precios?.reply || document.getElementById('t_precios')?.value || "💰 *Precio de los Modelos:*\n\nCon mucho gusto te compartimos los precios oficiales de nuestros equipos:\n🔹 50 HP: $21,600\n\n🔹 90 HP: $31,000\n\n🔹 130 HP: $52,700\n\n🔹 130 HP Con Cabina : $56,800\n\nTodos nuestros equipos cuentan con garantía de un año o a las 1000 horas.\n\nSi deseas ver el catalogo de nuestros modelos escribel \"catalogo\" en el chat y te enviamos un documento con toda la inforacion.",
+      financiamiento: document.getElementById('t_agro_financiamiento')?.value || itemsCat2.financiamiento?.reply || document.getElementById('t_financiamiento')?.value || "💳 *Sistema de Financiamiento:*Ofrecemos planes con inicial desde el 60% y financiamiento en cuotas fijas mensuales de 6 meses con aprobación rápida. A continuación le resalto los precios con el financiamiento:\n\n50 hp: Inicial de 13.000$ y 6 cuotas mensuales de 1.800$\n\n90 hp: Inicial de 18.600$ y 6 cuotas mensuales de 2.800$\n\n130 hp: Inicial de 33.600$ y 6 cuotas mensuales de 3.900$\n\n130 hp Con Cabina: Inicial de 34.800 y 6 cuotas mensuales de 4.500$",
+      compras_prog: document.getElementById('t_agro_compras_prog')?.value || itemsCat2.compras_prog?.reply || document.getElementById('t_compras_prog')?.value || "📦 *Compras Programadas (Pedido de Unidades):* Reserva tu unidad bajo pedido programado congelando el precio actual con planes de pago flexibles previos a la entrega.\n\nObtén tu equipo con un 15% de descuento sobre el precio de contado y págalo cómodamente en cuotas mensuales:\n\n🔹 Tractor 50 HP: Cuotas mensuales de $3,100, Total de 18.614$\n\n🔹 Tractor 90 HP: Cuotas mensuales de $4,578 Total de 27.470$\n\n🔹 Tractor 130 HP: Cuotas mensuales de $7,966 Total de 47.800$\n\nUna excelente oportunidad para planificar la renovación de tu maquinaria agrícola con facilidades de pago.",
+      asesor: document.getElementById('t_agro_asesor')?.value || itemsCat3.asesor?.reply || document.getElementById('t_asesor')?.value || "🧑‍💼 *Atención con Asesor:* ¡Con gusto! Te recordamos que nuestro horario de trabajo es de 8am a 5pm. Hemos notificado a uno de nuestros asesores comerciales para atender tu solicitud personalmente a la brevedad posible. Gracias por comunicarte con nosotros.",
+      customOptions: compCfg.customOptions || cfg.customOptions || []
+    };
+  }
+}
+
+function updateQuickRepliesUIForCompany(company = 'agropower') {
+  const isTracto = String(company || '').toLowerCase().includes('tracto');
+  const hint = document.getElementById('quickRepliesScopeHint');
+  if (hint) {
+    hint.innerText = isTracto ? 'Chat de Tractopower (Maquinaria Pesada)' : 'Chat de Agropower (Tractores Agrícolas)';
+  }
+}
+
 async function sendPreprogrammed(key) {
-  const greetingMenuVal = document.getElementById('t_greeting_menu')
-    ? document.getElementById('t_greeting_menu').value
-    : DEFAULT_GREETING_TEXT;
+  const activeConv = conversations.find(c => String(c.id) === String(activeChatId));
+  const isTractoConv = activeConv && (
+    (activeConv.company && activeConv.company.toLowerCase().includes('tracto')) ||
+    (activeConv.channel && activeConv.channel.toLowerCase().includes('tracto')) ||
+    (activeConv.phone && (activeConv.phone.includes('4249578682') || activeConv.phone.includes('424-9578682')))
+  );
 
-  const texts = {
-    menu_principal: greetingMenuVal,
-    cat_modelos: document.getElementById('t_cat_modelos').value,
-    repuestos: document.getElementById('t_repuestos').value,
-    garantia: document.getElementById('t_garantia').value,
-    precios: document.getElementById('t_precios').value,
-    financiamiento: document.getElementById('t_financiamiento').value,
-    compras_prog: document.getElementById('t_compras_prog').value,
-    asesor: document.getElementById('t_asesor').value
-  };
+  let replyText = '';
+  let attachment = null;
 
-  customProgrammedOptions.forEach(opt => {
-    texts[opt.id] = opt.reply;
-  });
+  if (key === 'cat_agro' || key === 'cat_modelos_agro') {
+    const agroData = typeof getPreprogrammedDataForCompany === 'function' ? getPreprogrammedDataForCompany('agropower') : null;
+    replyText = agroData?.cat_modelos || "📄 *Catálogo Oficial de Modelos:* Te adjuntamos en este mensaje nuestro catálogo completo en PDF con todas las fichas técnicas y modelos de tractores agrícolas disponibles.";
+    attachment = agroData?.cat_modelos_attachment || '1792614914044_5atuoj.pdf';
+  } else if (key === 'cat_tracto' || key === 'cat_modelos_tracto') {
+    const tractoData = typeof getPreprogrammedDataForCompany === 'function' ? getPreprogrammedDataForCompany('tractopower') : null;
+    replyText = tractoData?.cat_modelos || "📄 *Catálogo Oficial de Maquinaria Pesada Tractopower:* Te adjuntamos en este mensaje nuestro catálogo completo en PDF con todas las fichas técnicas y modelos disponibles (Payloaders, Retroexcavadoras, Montacargas y Jumbos).";
+    attachment = tractoData?.cat_modelos_attachment || 'catalogo_tractopower.pdf';
+  } else if (key === 'precios_agro') {
+    const agroData = typeof getPreprogrammedDataForCompany === 'function' ? getPreprogrammedDataForCompany('agropower') : null;
+    replyText = agroData?.precios || "💰 *Precio de los Modelos (Tractores Agropower):*\n\nCon mucho gusto te compartimos los precios oficiales de nuestros equipos:\n🔹 50 HP: $21,600\n🔹 90 HP: $31,000\n🔹 130 HP: $52,700\n🔹 130 HP Con Cabina : $56,800\n\nTodos nuestros equipos cuentan con garantía de un año o a las 1000 horas.\n\nSi deseas ver el catálogo de nuestros modelos escribe \"catalogo\" en el chat y te enviamos un documento con toda la información.";
+    attachment = null;
+  } else if (key === 'precios_tracto') {
+    const tractoData = typeof getPreprogrammedDataForCompany === 'function' ? getPreprogrammedDataForCompany('tractopower') : null;
+    replyText = tractoData?.precios || "💰 *Precio de los Modelos (Maquinaria Pesada Tractopower):*\n\nCon mucho gusto te compartimos los precios oficiales de nuestros equipos:\n\n🔹 Payloader 930: $52.000\n🔹 Payloader 936: $66.000\n🔹 Payloader 956: $85.800\n🔹 Retroexcavadora: $68.000\n🔹 Montacargas 10 Ton: $86.300\n🔹 Jumbos 23 Ton: $133.490\n🔹 Montacargas FD38: $21.600\n\nTodas nuestras maquinarias cuentan con garantía oficial de 1 año o 1.000 horas de trabajo.\n\nActualmente nuestras ventas se realizan únicamente de contado. Si deseas ver el catálogo completo escribe \"catalogo\" en el chat y te lo enviamos de inmediato.";
+    attachment = null;
+  } else {
+    const targetCompany = isTractoConv ? 'tractopower' : 'agropower';
+    const compData = typeof getPreprogrammedDataForCompany === 'function'
+      ? getPreprogrammedDataForCompany(targetCompany)
+      : null;
 
-  const attachment = key === 'cat_modelos' ? document.getElementById('t_pdf_name')?.value : null;
-  const replyText = texts[key] || '';
+    if (compData) {
+      if (key === 'menu_principal') {
+        replyText = compData.greeting;
+      } else if (key === 'cat_modelos') {
+        replyText = compData.cat_modelos;
+        attachment = compData.cat_modelos_attachment;
+      } else if (key === 'repuestos') {
+        replyText = compData.repuestos;
+      } else if (key === 'garantia') {
+        replyText = compData.garantia;
+      } else if (key === 'precios') {
+        replyText = compData.precios;
+      } else if (key === 'financiamiento') {
+        replyText = compData.financiamiento;
+      } else if (key === 'compras_prog') {
+        replyText = compData.compras_prog;
+      } else if (key === 'asesor') {
+        replyText = compData.asesor;
+      } else {
+        const customOpt = (compData.customOptions || []).find(o => o.id === key || o.key === key) ||
+                          (customProgrammedOptions || []).find(o => o.id === key || o.key === key);
+        if (customOpt) {
+          replyText = customOpt.reply;
+          attachment = customOpt.attachment || null;
+        }
+      }
+    }
+  }
+
   if (!replyText && !attachment) return;
 
   const now = new Date().toLocaleString('es-VE', {
@@ -1008,7 +1312,7 @@ async function sendPreprogrammed(key) {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   });
-  const activeConv = conversations.find(c => String(c.id) === String(activeChatId));
+  // activeConv already resolved
   let senderName = 'Asesor';
   let operatorUser = 'operator';
 
@@ -1431,6 +1735,8 @@ function filterChannel(ch) {
 
   if (!activeMatches) {
     const firstMatch = conversations.find(c => {
+      const isUnr = typeof isConversationUnread === 'function' ? isConversationUnread(c, null) : Boolean(c.unreadCount > 0 || c.isRead === false);
+      if (filterUnreadOnly && !isUnr) return false;
       if (ch === 'all') return true;
       const meta = channelMeta[c.channel] || channelMeta['wa_agro'];
       if (ch === 'company_agro') return meta.company === 'agropower';

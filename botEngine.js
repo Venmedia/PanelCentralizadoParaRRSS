@@ -1,3 +1,9 @@
+/**
+ * @file botEngine.js
+ * @description Motor de Respuestas Automáticas para WhatsApp y Canales Sociales.
+ * Soporta configuración y respuestas independientes para Agropower y Tractopower.
+ */
+
 const fs = require('fs');
 const path = require('path');
 const { getAutoReplyMessage } = require('./src/services/scheduleService');
@@ -25,16 +31,32 @@ function normalize(text) {
 }
 
 /**
- * Extrae todas las opciones del botConfig.json aplanando categories → items
+ * Obtiene el alcance de configuración según la empresa ('agropower' o 'tractopower')
+ */
+function getCompanyScope(config, company = 'agropower') {
+  if (!config) return { key: 'agropower', categories: {}, customOptions: [], greeting: '', welcomeMessage: '' };
+  const compKey = String(company || '').toLowerCase().includes('tracto') ? 'tractopower' : 'agropower';
+  const compObj = config.companies?.[compKey];
+
+  return {
+    key: compKey,
+    categories: compObj?.categories || (compKey === 'agropower' ? config.categories : {}) || {},
+    customOptions: compObj?.customOptions || (compKey === 'agropower' ? config.customOptions : []) || [],
+    greeting: compObj?.greeting || (compKey === 'agropower' ? config.greeting : ''),
+    welcomeMessage: compObj?.welcomeMessage || (compKey === 'agropower' ? config.schedule?.welcomeMessage : '')
+  };
+}
+
+/**
+ * Extrae todas las opciones del botConfig.json para una empresa dada aplanando categories → items
  * Retorna un array de { key, title, reply, attachment, attachmentUrl, pauseBot, keywords }
  */
-function flattenOptions(config) {
+function flattenOptions(config, company = 'agropower') {
   const options = [];
-  if (!config || !config.categories || typeof config.categories !== 'object') return options;
+  const scope = getCompanyScope(config, company);
+  if (!scope.categories || typeof scope.categories !== 'object') return options;
 
-  // Mapeo de categorías a números del menú para matching por número
-  // Categoría 1 items → opciones 1.1, 1.2, 1.3 (o por nombre clave)
-  for (const [catKey, cat] of Object.entries(config.categories)) {
+  for (const [catKey, cat] of Object.entries(scope.categories)) {
     if (!cat || typeof cat !== 'object' || !cat.items || typeof cat.items !== 'object') continue;
     for (const [itemKey, item] of Object.entries(cat.items)) {
       if (!item || typeof item !== 'object') continue;
@@ -50,9 +72,9 @@ function flattenOptions(config) {
     }
   }
 
-  // También incluir customOptions si existen
-  if (Array.isArray(config.customOptions)) {
-    for (const opt of config.customOptions) {
+  // Opciones personalizadas creadas para esta empresa
+  if (Array.isArray(scope.customOptions)) {
+    for (const opt of scope.customOptions) {
       options.push({
         key: opt.id || opt.key || ('custom_' + options.length),
         title: opt.title || opt.label || '',
@@ -72,34 +94,34 @@ function flattenOptions(config) {
  * Mapeo de palabras/frases naturales a keys de opciones del botConfig
  */
 const NATURAL_KEYWORDS = {
-  'cat_modelos':    ['catalogo', 'modelos', 'ficha tecnica', 'pdf', '1'],
-  'repuestos':      ['repuesto', 'repuestos', 'pieza', 'piezas'],
+  'cat_modelos':    ['catalogo', 'modelos', 'ficha tecnica', 'fichas tecnicas', 'pdf', '1'],
+  'repuestos':      ['repuesto', 'repuestos', 'pieza', 'piezas', 'consumible', 'consumibles'],
   'garantia':       ['garantia', 'garantias'],
-  'precios':        ['precio', 'precios', 'costo', 'costos', 'cotizar', 'cotizacion', '2'],
-  'financiamiento': ['financiamiento', 'financiar', 'credito', 'cuotas', 'plazo'],
+  'precios':        ['precio', 'precios', 'costo', 'costos', 'cotizar', 'cotizacion', '2', 'payloader', 'retroexcavadora', 'montacargas', 'jumbo', 'jumbos', 'tractor', 'tractores'],
+  'financiamiento': ['financiamiento', 'financiar', 'credito', 'cuotas', 'plazo', 'inicial'],
   'compras_prog':   ['compra programada', 'compras programadas', 'pedido', 'reserva', 'reservar'],
   'asesor':         ['asesor', 'asesora', 'hablar', 'persona', 'humano', 'agente', 'ayuda', '3']
 };
 
 /**
- * Procesa el mensaje entrante del cliente y determina la respuesta automática.
- * Compatible con la estructura real de botConfig.json (categories → items).
+ * Procesa el mensaje entrante del cliente y determina la respuesta automática según la empresa.
  */
-function processIncomingMessage(incomingText) {
+function processIncomingMessage(incomingText, company = 'agropower') {
   if (!incomingText || typeof incomingText !== 'string') return null;
   const config = loadConfig();
   if (!config) return null;
 
   const clean = normalize(incomingText);
   if (!clean) return null;
-  const options = flattenOptions(config);
+
+  const targetComp = String(company || '').toLowerCase().includes('tracto') ? 'tractopower' : 'agropower';
+  const options = flattenOptions(config, targetComp);
 
   if (options.length === 0) {
-    // Si no hay opciones configuradas, enviar solo el greeting
     return {
       matchedKey: 'greeting',
       title: 'Menú Principal',
-      reply: getAutoReplyMessage(config),
+      reply: getAutoReplyMessage(config, targetComp),
       attachment: null,
       pauseBot: false,
       isMenu: true
@@ -172,11 +194,11 @@ function processIncomingMessage(incomingText) {
     }
   }
 
-  // 5. Si no coincide con nada → Enviar Menú de Bienvenida / Fuera de Horario
+  // 5. Si no coincide con nada → Menú de Bienvenida según la empresa
   return {
     matchedKey: 'greeting',
     title: 'Menú Principal',
-    reply: getAutoReplyMessage(config),
+    reply: getAutoReplyMessage(config, targetComp),
     attachment: null,
     pauseBot: false,
     isMenu: true
@@ -185,5 +207,7 @@ function processIncomingMessage(incomingText) {
 
 module.exports = {
   processIncomingMessage,
-  loadConfig
+  loadConfig,
+  getCompanyScope,
+  flattenOptions
 };

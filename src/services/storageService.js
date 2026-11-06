@@ -88,6 +88,12 @@ function sanitizeAndResolveConversations(rawList) {
       changed = true;
     }
 
+    // Garantizar que si tiene mensajes sin leer, el contador sea estrictamente 1 por conversación
+    if (typeof c.unreadCount === 'number' && c.unreadCount > 1) {
+      c.unreadCount = 1;
+      changed = true;
+    }
+
     filtered.push(c);
   }
 

@@ -12,18 +12,120 @@
       "name": "Agropower",
       "instagram": "agropower_venezuela",
       "tiktok": "agropower_venezuela",
-      "facebook": "Pendiente por configurar",
-      "whatsapp": "Baileys + Evolution API"
+      "facebook": "Agropower",
+      "whatsapp": "Baileys + Evolution API",
+      "greeting": "👋 *¡Hola! Bienvenido a Agropower.*\nSelecciona qué información deseas recibir:\n\n📘 *1. CATÁLOGO Y DESC. TÉCNICA*\n • Catálogo de modelos (PDF)\n • Repuestos\n • Garantía\n\n💵 *2. COSTOS Y FINANCIAMIENTO*\n • Precio de los modelos\n • Sistema de financiamiento\n • Compras programadas\n\n🧑‍💼 *3. HABLAR CON UN ASESOR*",
+      "welcomeMessage": "Feliz dia estimado cliente, gracias por contactarnos, en un momento un asesor se pondra en contacto con usted para brindarle toda la informacion que desea, gracias por su paciencia, Su consulta es muy importante para nosotros.",
+      "customCategories": [],
+      "customOptions": [],
+      "categories": {
+        "catalogo_tecnico": {
+          "title": "Catálogo y Descripción Técnica",
+          "items": {
+            "cat_modelos": {
+              "title": "Catálogo de modelos",
+              "reply": "📄 *Catálogo Oficial de Modelos:* Te adjuntamos en este mensaje nuestro catálogo completo en PDF con todas las fichas técnicas y modelos de tractores agrícolas disponibles.",
+              "attachment": "1792614914044_5atuoj.pdf"
+            },
+            "repuestos": {
+              "title": "Repuestos",
+              "reply": "🔧 *Repuestos Originales Agropower:* Contamos con amplio stock de repuestos y consumibles originales para toda nuestra línea de tractores agrícolas con despacho a nivel nacional. Indícanos qué modelo de tractor tienes y qué pieza necesitas.\n\nEstás respaldado por nuestra marca en la adquisición de cualquier repuesto que necesite tu equipo."
+            },
+            "garantia": {
+              "title": "Garantía",
+              "reply": "🛡️ *Garantía Oficial Agropower:* Todas nuestras unidades cuentan con garantía certificada de fábrica y soporte técnico directo en nuestros talleres autorizados.\n\nTodos nuestros tractores cuentan con garantía oficial de 1 año o 1,000 horas de trabajo (lo que ocurra primero), la cual incluye nuestro servicio de mantenimiento a pie de finca para enviar a nuestros técnicos especializados y repuestos directamente a tu unidad de producción, garantizando que tu equipo se mantenga siempre operativo sin que tengas que preocuparte por el traslado; escríbenos si deseas más información o resolver alguna duda técnica."
+            }
+          }
+        },
+        "costos_financiamiento": {
+          "title": "Costos y Financiamiento",
+          "items": {
+            "precios": {
+              "title": "Precio de los modelos",
+              "reply": "💰 *Precio de los Modelos:*\n\nCon mucho gusto te compartimos los precios oficiales de nuestros equipos:\n🔹 50 HP: $21,600\n\n🔹 90 HP: $31,000\n\n🔹 130 HP: $52,700\n\n🔹 130 HP Con Cabina : $56,800\n\nTodos nuestros equipos cuentan con garantía de un año o a las 1000 horas.\n\nSi deseas ver el catalogo de nuestros modelos escribel \"catalogo\" en el chat y te enviamos un documento con toda la inforacion."
+            },
+            "financiamiento": {
+              "title": "Sistema de financiamiento",
+              "reply": "💳 *Sistema de Financiamiento:*Ofrecemos planes con inicial desde el 60% y financiamiento en cuotas fijas mensuales de 6 meses con aprobación rápida. A continuación le resalto los precios con el financiamiento:\n\n50 hp: Inicial de 13.000$ y 6 cuotas mensuales de 1.800$\n\n90 hp: Inicial de 18.600$ y 6 cuotas mensuales de 2.800$\n\n130 hp: Inicial de 33.600$ y 6 cuotas mensuales de 3.900$\n\n130 hp Con Cabina: Inicial de 34.800 y 6 cuotas mensuales de 4.500$"
+            },
+            "compras_prog": {
+              "title": "Compras programadas",
+              "reply": "📦 *Compras Programadas (Pedido de Unidades):* Reserva tu unidad bajo pedido programado congelando el precio actual con planes de pago flexibles previos a la entrega.\n\nObtén tu equipo con un 15% de descuento sobre el precio de contado y págalo cómodamente en cuotas mensuales:\n\n🔹 Tractor 50 HP: Cuotas mensuales de $3,100, Total de 18.614$\n\n🔹 Tractor 90 HP: Cuotas mensuales de $4,578 Total de 27.470$\n\n🔹 Tractor 130 HP: Cuotas mensuales de $7,966 Total de 47.800$\n\nUna excelente oportunidad para planificar la renovación de tu maquinaria agrícola con facilidades de pago."
+            }
+          }
+        },
+        "atencion_asesor": {
+          "title": "Hablar con un asesor",
+          "items": {
+            "asesor": {
+              "title": "Hablar con un asesor",
+              "reply": "🧑‍💼 *Atención con Asesor:* ¡Con gusto! Te recordamos que nuestro horario de trabajo es de 8am a 5pm. Hemos notificado a uno de nuestros asesores comerciales para atender tu solicitud personalmente a la brevedad posible. Gracias por comunicarte con nosotros.",
+              "waitingAdvisor": true
+            }
+          }
+        }
+      }
     },
     "tractopower": {
       "name": "Tractopower",
       "instagram": "Tractopower_venezuela",
       "tiktok": "tractopowervenezuela",
       "facebook": "Pendiente por configurar",
-      "whatsapp": "Baileys + Evolution API"
+      "whatsapp": "Baileys + Evolution API",
+      "greeting": "👋 *¡Hola! Bienvenido a Tractopower.*\nSelecciona qué información deseas recibir:\n\n📘 *1. CATÁLOGO Y DESC. TÉCNICA*\n • Catálogo de maquinaria pesada (PDF)\n • Repuestos\n • Garantía\n\n💵 *2. COSTOS Y VENTA AL CONTADO*\n • Precio de los modelos\n • Solo se realizan ventas de contado, \n   sin financiamiento. (Proxim.)\n\n🧑‍💼 *3. HABLAR CON UN ASESOR*",
+      "welcomeMessage": "Feliz dia estimado cliente, gracias por contactarnos, en un momento un asesor se pondra en contacto con usted para brindarle toda la informacion que desea, gracias por su paciencia, Su consulta es muy importante para nosotros.",
+      "customCategories": [],
+      "customOptions": [],
+      "categories": {
+        "catalogo_tecnico": {
+          "title": "Catálogo y Maquinaria Pesada",
+          "items": {
+            "cat_modelos": {
+              "title": "Catálogo de maquinaria pesada",
+              "reply": "📄 *Catálogo Oficial de Maquinaria Pesada Tractopower:* Te adjuntamos en este mensaje nuestro catálogo completo en PDF con todas las fichas técnicas y modelos disponibles (Payloaders, Retroexcavadoras, Montacargas y Jumbos).",
+              "attachment": "catalogo_tractopower.pdf"
+            },
+            "repuestos": {
+              "title": "Repuestos",
+              "reply": "🔧 *Repuestos Originales Tractopower:* Contamos con amplio stock de repuestos y consumibles originales para maquinaria pesada (Payloaders, Retroexcavadoras, Montacargas y Jumbos) con despacho a nivel nacional. Indícanos qué modelo de maquinaria tienes y qué repuesto necesitas.\n\nEstás respaldado por nuestra marca en la adquisición de cualquier repuesto para tu maquinaria pesada."
+            },
+            "garantia": {
+              "title": "Garantía",
+              "reply": "🛡️ *Garantía Oficial Tractopower:* Todas nuestras unidades cuentan con garantía certificada de fábrica y soporte técnico directo en nuestros talleres autorizados.\n\nTodas nuestras maquinarias pesadas cuentan con garantía oficial de 1 año o 1.000 horas de trabajo (lo que ocurra primero), la cual incluye nuestro servicio técnico especializado y disponibilidad de repuestos para garantizar que tu equipo se mantenga siempre 100% operativo en obra; escríbenos si deseas más información o resolver alguna duda técnica sobre tu equipo."
+            }
+          }
+        },
+        "costos_financiamiento": {
+          "title": "Costos y Venta al Contado",
+          "items": {
+            "precios": {
+              "title": "Precio de los modelos",
+              "reply": "💰 *Precio de los Modelos (Maquinaria Pesada Tractopower):*\n\nCon mucho gusto te compartimos los precios oficiales de nuestros equipos:\n\n🔹 Payloader 930: $52.000\n🔹 Payloader 936: $66.000\n🔹 Payloader 956: $85.800\n🔹 Retroexcavadora: $68.000\n🔹 Montacargas 10 Ton: $86.300\n🔹 Jumbos 23 Ton: $133.490\n🔹 Montacargas FD38: $21.600\n\nTodas nuestras maquinarias cuentan con garantía oficial de 1 año o 1.000 horas de trabajo.\n\nActualmente nuestras ventas se realizan únicamente de contado. Si deseas ver el catálogo completo escribe \"catalogo\" en el chat y te lo enviamos de inmediato."
+            },
+            "financiamiento": {
+              "title": "Condición de Venta Contado",
+              "reply": "💳 *Condiciones de Financiamiento Tractopower:*\n\nPor ahora para nuestra línea de maquinaria pesada únicamente comercializamos bajo modalidad de venta al contado. No disponemos de planes de financiamiento ni compras programadas (dichos planes aplican exclusivamente para tractores agrícolas).\n\nSi deseas adquirir o cotizar alguno de nuestros equipos de contado, un asesor comercial te atenderá de inmediato."
+            },
+            "compras_prog": {
+              "title": "Compras programadas",
+              "reply": "📦 *Compras Programadas:*\n\nLa modalidad de Compra Programada aplica exclusivamente para la línea de tractores agrícolas (Agropower). En maquinaria pesada Tractopower la comercialización se realiza únicamente de contado bajo disponibilidad y pedido directo."
+            }
+          }
+        },
+        "atencion_asesor": {
+          "title": "Hablar con un asesor",
+          "items": {
+            "asesor": {
+              "title": "Hablar con un asesor",
+              "reply": "🧑‍💼 *Atención con Asesor Tractopower:* ¡Con gusto! Te recordamos que nuestro horario de trabajo es de 8am a 5pm. Hemos notificado a uno de nuestros asesores comerciales para atender tu solicitud de maquinaria pesada personalmente a la brevedad posible. Gracias por comunicarte con nosotros.",
+              "waitingAdvisor": true
+            }
+          }
+        }
+      }
     }
   },
-  "greeting": "👋 *¡Hola! Este es nuestro sistema automatizado para atención fuera del horario laboral.*\nSelecciona qué información deseas recibir:\n\n📘 *1. CATÁLOGO Y DESC. TÉCNICA*\n • Catálogo de modelos (PDF)\n • Repuestos\n • Garantía\n\n💵 *2. COSTOS Y FINANCIAMIENTO*\n • Precio de los modelos\n • Sistema de financiamiento\n • Compras programadas\n\n🧑‍💼 *3. HABLAR CON UN ASESOR*\n\nEstamos construyendo nuestro sistema de atención. Próximamente un asesor se comunicara contigo para darte el servicio personalizado",
+  "greeting": "👋 *¡Hola! Bienvenido a Agropower.*\nSelecciona qué información deseas recibir:\n\n📘 *1. CATÁLOGO Y DESC. TÉCNICA*\n • Catálogo de modelos (PDF)\n • Repuestos\n • Garantía\n\n💵 *2. COSTOS Y FINANCIAMIENTO*\n • Precio de los modelos\n • Sistema de financiamiento\n • Compras programadas\n\n🧑‍💼 *3. HABLAR CON UN ASESOR*",
   "customCategories": [],
   "customOptions": [],
   "categories": {
@@ -32,16 +134,16 @@
       "items": {
         "cat_modelos": {
           "title": "Catálogo de modelos",
-          "reply": "📄 *Catálogo Oficial de Modelos:* Te adjuntamos en este mensaje nuestro catálogo completo en PDF con todas las fichas técnicas y modelos disponibles.",
+          "reply": "📄 *Catálogo Oficial de Modelos:* Te adjuntamos en este mensaje nuestro catálogo completo en PDF con todas las fichas técnicas y modelos de tractores agrícolas disponibles.",
           "attachment": "1792614914044_5atuoj.pdf"
         },
         "repuestos": {
           "title": "Repuestos",
-          "reply": "🔧 *Repuestos Originales:* Contamos con amplio stock de repuestos y consumibles originales con despacho a nivel nacional. Indícanos qué modelo tienes y qué pieza necesitas.\n\nEstamos construyendo nuestro sistema de atención. Próximamente un asesor se comunicara contigo para darte el servicio personalizado"
+          "reply": "🔧 *Repuestos Originales Agropower:* Contamos con amplio stock de repuestos y consumibles originales para toda nuestra línea de tractores agrícolas con despacho a nivel nacional. Indícanos qué modelo de tractor tienes y qué pieza necesitas.\n\nEstás respaldado por nuestra marca en la adquisición de cualquier repuesto que necesite tu equipo."
         },
         "garantia": {
           "title": "Garantía",
-          "reply": "🛡️ *Garantía Oficial:* Todas nuestras unidades cuentan con garantía certificada de fábrica y soporte técnico directo en nuestros talleres autorizados.\n\nEstamos construyendo nuestro sistema de atención. Próximamente un asesor se comunicara contigo para darte el servicio personalizado"
+          "reply": "🛡️ *Garantía Oficial Agropower:* Todas nuestras unidades cuentan con garantía certificada de fábrica y soporte técnico directo en nuestros talleres autorizados.\n\nTodos nuestros tractores cuentan con garantía oficial de 1 año o 1,000 horas de trabajo (lo que ocurra primero), la cual incluye nuestro servicio de mantenimiento a pie de finca para enviar a nuestros técnicos especializados y repuestos directamente a tu unidad de producción, garantizando que tu equipo se mantenga siempre operativo sin que tengas que preocuparte por el traslado; escríbenos si deseas más información o resolver alguna duda técnica."
         }
       }
     },
@@ -50,15 +152,15 @@
       "items": {
         "precios": {
           "title": "Precio de los modelos",
-          "reply": "💰 *Precio de los Modelos:* Nuestros precios de contado y lista actualizada varían según la configuración elegida. ¿Qué modelo del catálogo te interesa cotizar?\n\nEstamos construyendo nuestro sistema de atención. Próximamente un asesor se comunicara contigo para darte el servicio personalizado"
+          "reply": "💰 *Precio de los Modelos:*\n\nCon mucho gusto te compartimos los precios oficiales de nuestros equipos:\n🔹 50 HP: $21,600\n\n🔹 90 HP: $31,000\n\n🔹 130 HP: $52,700\n\n🔹 130 HP Con Cabina : $56,800\n\nTodos nuestros equipos cuentan con garantía de un año o a las 1000 horas.\n\nSi deseas ver el catalogo de nuestros modelos escribel \"catalogo\" en el chat y te enviamos un documento con toda la inforacion."
         },
         "financiamiento": {
           "title": "Sistema de financiamiento",
-          "reply": "💳 *Sistema de Financiamiento:* Ofrecemos planes con inicial desde el 30% y financiamiento en cuotas fijas mensuales de 12 a 36 meses con aprobación rápida.\n\nEstamos construyendo nuestro sistema de atención. Próximamente un asesor se comunicara contigo para darte el servicio personalizado"
+          "reply": "💳 *Sistema de Financiamiento:*Ofrecemos planes con inicial desde el 60% y financiamiento en cuotas fijas mensuales de 6 meses con aprobación rápida. A continuación le resalto los precios con el financiamiento:\n\n50 hp: Inicial de 13.000$ y 6 cuotas mensuales de 1.800$\n\n90 hp: Inicial de 18.600$ y 6 cuotas mensuales de 2.800$\n\n130 hp: Inicial de 33.600$ y 6 cuotas mensuales de 3.900$\n\n130 hp Con Cabina: Inicial de 34.800 y 6 cuotas mensuales de 4.500$"
         },
         "compras_prog": {
           "title": "Compras programadas",
-          "reply": "📦 *Compras Programadas (Pedido de Unidades):* Reserva tu unidad bajo pedido programado congelando el precio actual con planes de pago flexibles previos a la entrega.\n\nEstamos construyendo nuestro sistema de atención. Próximamente un asesor se comunicara contigo para darte el servicio personalizado"
+          "reply": "📦 *Compras Programadas (Pedido de Unidades):* Reserva tu unidad bajo pedido programado congelando el precio actual con planes de pago flexibles previos a la entrega.\n\nObtén tu equipo con un 15% de descuento sobre el precio de contado y págalo cómodamente en cuotas mensuales:\n\n🔹 Tractor 50 HP: Cuotas mensuales de $3,100, Total de 18.614$\n\n🔹 Tractor 90 HP: Cuotas mensuales de $4,578 Total de 27.470$\n\n🔹 Tractor 130 HP: Cuotas mensuales de $7,966 Total de 47.800$\n\nUna excelente oportunidad para planificar la renovación de tu maquinaria agrícola con facilidades de pago."
         }
       }
     },

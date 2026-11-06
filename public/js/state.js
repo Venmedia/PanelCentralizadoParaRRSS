@@ -15,6 +15,7 @@ let heartbeatInterval = null;
 let lockoutTimerInterval = null;
 
 let currentFilter = 'all';
+let filterUnreadOnly = false;
 let activeChatId = 1;
 let conversations = [];
 let currentUserId = 1;
@@ -22,6 +23,23 @@ let usersList = [];
 let latestAnalytics = null;
 let customProgrammedCategories = [];
 let customProgrammedOptions = [];
+
+
+const DEFAULT_TRACTOPOWER_GREETING_TEXT = `👋 *¡Hola! Este es nuestro sistema automatizado para atención fuera del horario laboral de Tractopower.*
+Selecciona qué información deseas recibir:
+
+📘 *1. CATÁLOGO Y DESC. TÉCNICA*
+ • Catálogo de maquinaria pesada (PDF)
+ • Repuestos
+ • Garantía
+
+💵 *2. COSTOS Y VENTA AL CONTADO*
+ • Precio de los modelos
+ • Ventas de Contado (Sin financiamiento)
+
+🧑‍💼 *3. HABLAR CON UN ASESOR*
+
+Estamos construyendo nuestro sistema de atención. Próximamente un asesor se comunicará contigo para darte el servicio personalizado.`;
 
 const DEFAULT_GREETING_TEXT = `👋 *¡Hola! Bienvenido a nuestra central de atención.*
 Selecciona qué información deseas recibir:
@@ -130,3 +148,39 @@ channelMeta.ig1 = channelMeta.ig_agro;
 channelMeta.tk1 = channelMeta.tk_agro;
 channelMeta.ig2 = channelMeta.ig_tracto;
 channelMeta.tk2 = channelMeta.tk_tracto;
+
+/**
+ * Determina de manera unificada y exacta si una conversación está sin leer / sin atender.
+ * Solo cuenta 1 por conversación.
+ * @param {object} c - Objeto de conversación
+ * @param {string|number} [activeId] - ID de la conversación actualmente abierta en pantalla
+ * @returns {boolean}
+ */
+function isConversationUnread(c, activeId = activeChatId) {
+  if (!c) return false;
+  // Si está actualmente seleccionada y abierta en pantalla, se considera leída
+  if (activeId !== undefined && activeId !== null && String(c.id) === String(activeId)) {
+    return false;
+  }
+  // Si explícitamente tiene contador de mensajes no leídos > 0
+  if (typeof c.unreadCount === 'number' && c.unreadCount > 0) {
+    return true;
+  }
+  // Si está marcada explícitamente como no leída
+  if (c.isRead === false) {
+    return true;
+  }
+  // Si está esperando asesor
+  if (c.waitingAdvisor === true) {
+    return true;
+  }
+  // Para conversaciones donde isRead no está definido explícitamente (ej: Meta importadas históricas)
+  // Si no está explícitamente leída (isRead !== true), y el último mensaje fue del cliente
+  if (c.isRead !== true) {
+    const lastMsg = c.messages?.[c.messages.length - 1];
+    if (lastMsg && (lastMsg.sender === 'client' || lastMsg.from === 'client')) {
+      return true;
+    }
+  }
+  return false;
+}

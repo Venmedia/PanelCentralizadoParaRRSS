@@ -208,7 +208,8 @@ function initWhatsAppHandler(io) {
 
     conv.time = now;
     conv.isRead = false;
-    conv.unreadCount = (conv.unreadCount || 0) + 1;
+    conv.unreadCount = 1;
+    conv.waitingAdvisor = true;
 
     const clientMsg = {
       sender: 'client',
@@ -227,14 +228,15 @@ function initWhatsAppHandler(io) {
     const hasRealText = text && text !== mediaLabel;
 
     if (hasRealText) {
+      const targetCompany = (conv.channel === 'wa_tracto' || (conv.company && conv.company.toLowerCase().includes('tracto'))) ? 'tractopower' : 'agropower';
       const config = loadBotConfig();
-      const schedStatus = evaluateSchedule(config.schedule, config);
+      const schedStatus = evaluateSchedule(config.schedule, config, targetCompany);
 
-      console.log(`[Bot WhatsApp] 📩 Mensaje entrante de "${conv.name}" (${remoteJid}): "${text}" | Horario VE: ${schedStatus.serverTime} | shouldAutoReply: ${schedStatus.shouldAutoReply}`);
+      console.log(`[Bot WhatsApp - ${targetCompany}] 📩 Mensaje entrante de "${conv.name}" (${remoteJid}): "${text}" | Horario VE: ${schedStatus.serverTime} | shouldAutoReply: ${schedStatus.shouldAutoReply}`);
 
       if (!schedStatus.shouldAutoReply) {
         // Dentro del horario laboral: atención humana directa, no auto-responder
-        console.log(`[Bot WhatsApp] ⏸️ Dentro de horario laboral (${schedStatus.workStart} - ${schedStatus.workEnd} VE). Bot en pausa, atención humana asignada.`);
+        console.log(`[Bot WhatsApp - ${targetCompany}] ⏸️ Dentro de horario laboral (${schedStatus.workStart} - ${schedStatus.workEnd} VE). Bot en pausa, atención humana asignada.`);
         saveConversations(conversations);
         io.emit('conversations_updated', conversations);
         return;
@@ -244,7 +246,7 @@ function initWhatsAppHandler(io) {
       const clean = text.toLowerCase().trim();
       const isAskingAdvisor = clean === '3' || clean.includes('asesor') || clean.includes('humano');
 
-      const botResult = processIncomingMessage(text);
+      const botResult = processIncomingMessage(text, targetCompany);
 
       if (botResult) {
         let replyText = botResult.reply;
@@ -264,15 +266,16 @@ function initWhatsAppHandler(io) {
             attachment,
             time: now
           });
-          console.log(`[Bot WhatsApp] 🤖 Respondiendo automáticamente a ${remoteJid}: "${replyText.substring(0, 60)}..."`);
+          console.log(`[Bot WhatsApp - ${targetCompany}] 🤖 Respondiendo automáticamente a ${remoteJid}: "${replyText.substring(0, 60)}..."`);
           await whatsappService.sendText(remoteJid, replyText, conv.channel || conv.company);
 
-          if (botResult.attachmentUrl) {
+          const attachFile = botResult.attachment || botResult.attachmentUrl;
+          if (attachFile) {
             try {
-              console.log(`[Bot WhatsApp] 📄 Enviando documento adjunto a ${remoteJid}: ${botResult.attachmentUrl}`);
-              await whatsappService.sendPdf(remoteJid, botResult.attachmentUrl, attachment, conv.channel || conv.company);
+              console.log(`[Bot WhatsApp - ${targetCompany}] 📄 Enviando documento adjunto a ${remoteJid}: ${attachFile}`);
+              await whatsappService.sendPdf(remoteJid, attachFile, replyText, conv.channel || conv.company);
             } catch (e) {
-              console.error('[Bot WhatsApp] ❌ Error enviando documento:', e.message);
+              console.error(`[Bot WhatsApp - ${targetCompany}] ❌ Error enviando documento:`, e.message);
             }
           }
         }
@@ -467,7 +470,7 @@ function initWhatsAppHandler(io) {
           waitingAdvisor: false,
           time: formattedTime,
           isRead: !isChatUnread,
-          unreadCount: chatObj.unreadCount || 0,
+          unreadCount: isChatUnread ? 1 : 0,
           messages: []
         };
         conversations.push(conv);
@@ -493,7 +496,7 @@ function initWhatsAppHandler(io) {
         }
         if (isChatUnread) {
           conv.isRead = false;
-          conv.unreadCount = chatObj.unreadCount;
+          conv.unreadCount = 1;
           changed = true;
         }
       }

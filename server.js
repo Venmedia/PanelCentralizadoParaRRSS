@@ -2,6 +2,7 @@
 process.env.TZ = 'America/Caracas';
 require('dotenv').config();
 const express = require('express');
+const compression = require('compression');
 const http = require('http');
 const cors = require('cors');
 const path = require('path');
@@ -42,6 +43,7 @@ app.set('trust proxy', 1);
 
 // 1. Capa de Seguridad Modular (Cabeceras HTTP, CORS, Sanitización Anti-XSS/Inyección, Rate Limit)
 app.use(securityHeaders);
+app.use(compression({ threshold: 1024 }));
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '35mb', strict: true }));
 app.use(sanitizeRequest);
@@ -51,6 +53,7 @@ app.use('/api/', apiRateLimiter);
 app.get('/login', (req, res) => {
   res.sendFile(path.join(PATHS.PUBLIC_DIR, 'index.html'));
 });
+app.use((req, res, next) => { res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); res.setHeader('Pragma', 'no-cache'); res.setHeader('Expires', '0'); next(); });
 app.use(express.static(PATHS.PUBLIC_DIR));
 
 // 3. Inicializar Manejador Modular de WhatsApp en Tiempo Real

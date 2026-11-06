@@ -440,6 +440,12 @@ function integrateIncomingTikTokMessage({ channelKey, senderUsername, text, send
     conv.time = timeFormatted;
     if (sender === 'client') {
       conv.waitingAdvisor = true;
+      conv.isRead = false;
+      conv.unreadCount = 1;
+    } else {
+      conv.waitingAdvisor = false;
+      conv.isRead = true;
+      conv.unreadCount = 0;
     }
   } else {
     conv = {
@@ -452,6 +458,8 @@ function integrateIncomingTikTokMessage({ channelKey, senderUsername, text, send
       channel: channelKey,
       botActive: false,
       waitingAdvisor: sender === 'client',
+      isRead: sender !== 'client',
+      unreadCount: sender === 'client' ? 1 : 0,
       time: timeFormatted,
       messages: [newMsg]
     };

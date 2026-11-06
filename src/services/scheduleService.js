@@ -1,13 +1,22 @@
+/**
+ * @file scheduleService.js
+ * @description Servicio de evaluación de horarios laborales y mensajes automáticos
+ * Soporta configuración independiente para Agropower y Tractopower.
+ */
+
 const {
   DEFAULT_GREETING_MENU,
   DEFAULT_OUT_OF_HOURS_MESSAGE
 } = require('../config/constants');
 
-function getAutoReplyMessage(config) {
+function getAutoReplyMessage(config, company = 'agropower') {
   const cfg = config || {};
   const sched = cfg.schedule || {};
-  const greetingMenu = cfg.greeting || DEFAULT_GREETING_MENU;
-  const outOfHoursMsg = sched.welcomeMessage || DEFAULT_OUT_OF_HOURS_MESSAGE;
+  const compKey = String(company || '').toLowerCase().includes('tracto') ? 'tractopower' : 'agropower';
+  const compCfg = cfg.companies?.[compKey] || null;
+
+  const greetingMenu = compCfg?.greeting || cfg.greeting || DEFAULT_GREETING_MENU;
+  const outOfHoursMsg = compCfg?.welcomeMessage || sched.welcomeMessage || DEFAULT_OUT_OF_HOURS_MESSAGE;
   const source = sched.autoReplySource || 'greeting_menu';
 
   if (source === 'out_of_hours') return outOfHoursMsg;
@@ -15,12 +24,12 @@ function getAutoReplyMessage(config) {
   return greetingMenu;
 }
 
-function evaluateSchedule(scheduleConfig, fullConfig) {
+function evaluateSchedule(scheduleConfig, fullConfig, company = 'agropower') {
   const sched = scheduleConfig || {};
   const mode = sched.mode || 'outside_work_hours';
   const workStart = sched.workStart || '08:00';
   const workEnd = sched.workEnd || '17:00';
-  const welcomeMessage = getAutoReplyMessage(fullConfig || { schedule: sched });
+  const welcomeMessage = getAutoReplyMessage(fullConfig || { schedule: sched }, company);
 
   // SIEMPRE usar hora de Venezuela (America/Caracas = UTC-4) garantizada con Intl
   const now = new Date();

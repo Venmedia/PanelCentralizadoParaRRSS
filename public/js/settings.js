@@ -1,6 +1,8 @@
 /* =========================================================================
-   MÓDULO 5: AJUSTES, MENSAJE DE BIENVENIDA, OPCIONES EXTRA, HORARIO, PDF Y QR (public/js/settings.js)
+   MÓDULO 5: AJUSTES, PLANTILLAS DUALES (AGROPOWER / TRACTOPOWER), BOT Y PDF
    ========================================================================= */
+
+let currentSettingsCompany = 'agropower';
 
 async function loadBotSettings() {
   try {
@@ -12,55 +14,65 @@ async function loadBotSettings() {
   }
 }
 
-async function checkCatalogPdfStatus() {
+/**
+ * Consulta el estado del catálogo PDF para una empresa ('agropower' o 'tractopower')
+ */
+async function checkCatalogPdfStatus(company = 'agropower') {
   try {
-    const res = await fetch('/api/config/catalog-pdf');
+    const res = await fetch('/api/config/catalog-pdf?company=' + encodeURIComponent(company));
     const info = await res.json();
-    updateCatalogPdfUI(info);
+    updateCatalogPdfUI(info, company);
   } catch (e) {}
 }
 
-function updateCatalogPdfUI(info) {
-  const hiddenName = document.getElementById('t_pdf_name');
-  const nameEl = document.getElementById('pdfCurrentName');
-  const metaEl = document.getElementById('pdfCurrentMeta');
-  const pillEl = document.getElementById('pdfStatusPill');
-  const viewBtn = document.getElementById('btnViewPdf');
-  const delBtn = document.getElementById('btnDeletePdf');
-  const uploadText = document.getElementById('btnUploadPdfText');
-  const iconEl = document.getElementById('pdfCardIcon');
+function updateCatalogPdfUI(info, company = 'agropower') {
+  const isTracto = String(company || '').toLowerCase().includes('tracto');
+  const suffix = isTracto ? '_tracto' : '_agro';
 
+  const hiddenName = document.getElementById('t' + suffix + '_pdf_name');
+  const nameEl = document.getElementById('pdfCurrentName' + suffix);
+  const metaEl = document.getElementById('pdfCurrentMeta' + suffix);
+  const pillEl = document.getElementById('pdfStatusPill' + suffix);
+  const viewBtn = document.getElementById('btnViewPdf' + suffix);
+  const delBtn = document.getElementById('btnDeletePdf' + suffix);
+
+  if (hiddenName && info && info.fileName) {
+    hiddenName.value = info.fileName;
+  }
   if (!nameEl) return;
 
   if (info && info.exists && info.fileName) {
-    hiddenName.value = info.fileName;
     nameEl.innerText = info.fileName;
     const sizeKb = info.sizeBytes ? `${(info.sizeBytes / 1024).toFixed(1)} KB` : 'Disponible';
-    metaEl.innerText = `En el servidor (${sizeKb}) • Listo para enviar`;
-    pillEl.className =
-      'text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold';
-    pillEl.innerText = 'Activo en Servidor';
-    iconEl.className = 'fa-solid fa-file-pdf text-rose-500 text-lg shrink-0';
-    viewBtn.href = info.url || `/media/${encodeURIComponent(info.fileName)}`;
-    viewBtn.classList.remove('hidden');
-    delBtn.classList.remove('hidden');
-    uploadText.innerText = 'Sustituir por otro PDF de la PC';
+    if (metaEl) {
+      metaEl.innerText = isTracto
+        ? `Catálogo Maquinaria Pesada (${sizeKb}) • Listo para enviar`
+        : `Catálogo Tractores Agropower (${sizeKb}) • Listo para enviar`;
+    }
+    if (pillEl) {
+      pillEl.className = 'text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold';
+      pillEl.innerText = 'Activo en Servidor';
+    }
+    if (viewBtn) {
+      viewBtn.href = info.url || `/media/${encodeURIComponent(info.fileName)}`;
+      viewBtn.classList.remove('hidden');
+    }
+    if (delBtn) delBtn.classList.remove('hidden');
   } else {
-    hiddenName.value = '';
-    nameEl.innerText = 'Ningún catálogo PDF cargado';
-    metaEl.innerText = 'Selecciona un archivo PDF desde tu PC para guardarlo';
-    pillEl.className =
-      'text-[9px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 font-semibold';
-    pillEl.innerText = 'Sin archivo';
-    iconEl.className = 'fa-solid fa-file-circle-xmark text-slate-500 text-lg shrink-0';
-    viewBtn.classList.add('hidden');
-    delBtn.classList.add('hidden');
-    uploadText.innerText = 'Seleccionar PDF desde la PC y Guardar';
+    nameEl.innerText = isTracto ? 'Ningún catálogo cargado para Tractopower' : 'Ningún catálogo cargado para Agropower';
+    if (metaEl) metaEl.innerText = 'Selecciona un archivo PDF desde tu PC para guardarlo';
+    if (pillEl) {
+      pillEl.className = 'text-[9px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 font-semibold';
+      pillEl.innerText = 'Sin archivo';
+    }
+    if (viewBtn) viewBtn.classList.add('hidden');
+    if (delBtn) delBtn.classList.add('hidden');
   }
 }
 
-function showPdfFeedback(msg, isError = false) {
-  const fb = document.getElementById('pdfActionFeedback');
+function showPdfFeedback(msg, isError = false, company = 'agropower') {
+  const isTracto = String(company || '').toLowerCase().includes('tracto');
+  const fb = document.getElementById(isTracto ? 'pdfActionFeedback_tracto' : 'pdfActionFeedback_agro');
   if (!fb) return;
   fb.classList.remove('hidden');
   fb.className = `text-[10px] font-semibold text-center py-1 px-2 rounded ${
@@ -74,17 +86,17 @@ function showPdfFeedback(msg, isError = false) {
   }, 3500);
 }
 
-function handlePdfFileSelected(event) {
+function handlePdfFileSelected(event, company = 'agropower') {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
 
   if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-    showPdfFeedback('⚠️ Por favor selecciona un archivo con formato .PDF válido', true);
+    showPdfFeedback('⚠️ Por favor selecciona un archivo con formato .PDF válido', true, company);
     event.target.value = '';
     return;
   }
 
-  showPdfFeedback('â³ Subiendo y guardando PDF en el servidor...');
+  showPdfFeedback('⏳ Subiendo y guardando PDF en el servidor...', false, company);
   const reader = new FileReader();
   reader.onload = async function (evt) {
     try {
@@ -93,59 +105,109 @@ function handlePdfFileSelected(event) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fileName: file.name,
-          fileBase64: evt.target.result
+          fileBase64: evt.target.result,
+          company: company
         })
       });
       const data = await res.json();
       if (data && data.success) {
-        updateCatalogPdfUI(data);
-        showPdfFeedback(`✅ ¡Guardado en el servidor: ${data.fileName}!`);
+        updateCatalogPdfUI(data, company);
+        showPdfFeedback(`✅ ¡Guardado en el servidor: ${data.fileName}!`, false, company);
       } else {
-        showPdfFeedback('âŒ Error al guardar el archivo en el servidor', true);
+        showPdfFeedback('❌ Error al guardar el archivo en el servidor', true, company);
       }
     } catch (err) {
-      showPdfFeedback('❌ Error de conexión al subir el archivo', true);
+      showPdfFeedback('❌ Error de conexión al subir el archivo', true, company);
     }
     event.target.value = '';
   };
   reader.readAsDataURL(file);
 }
 
-async function deleteCatalogPdf() {
-  const current = document.getElementById('t_pdf_name').value;
+async function deleteCatalogPdf(company = 'agropower') {
+  const isTracto = String(company || '').toLowerCase().includes('tracto');
+  const suffix = isTracto ? '_tracto' : '_agro';
+  const current = document.getElementById('t' + suffix + '_pdf_name')?.value;
+
   if (!current) return;
-  if (
-    !confirm(
-      `¿Seguro que deseas borrar el archivo "${current}" del servidor? Podrás subir uno nuevo cuando quieras.`
-    )
-  ) {
+  if (!confirm(`¿Seguro que deseas borrar el archivo "${current}" de ${isTracto ? 'Tractopower' : 'Agropower'} del servidor?`)) {
     return;
   }
   try {
-    const res = await fetch('/api/config/catalog-pdf', { method: 'DELETE' });
+    const res = await fetch('/api/config/catalog-pdf?company=' + encodeURIComponent(company), { method: 'DELETE' });
     const data = await res.json();
     if (data && data.success) {
-      updateCatalogPdfUI({ exists: false, fileName: '' });
-      showPdfFeedback('🗑️ Catálogo PDF eliminado del servidor correctamente.');
+      updateCatalogPdfUI({ exists: false, fileName: '' }, company);
+      showPdfFeedback('🗑️ Catálogo PDF eliminado correctamente.', false, company);
     }
   } catch (e) {
-    showPdfFeedback('âŒ Error al eliminar el PDF del servidor', true);
+    showPdfFeedback('❌ Error al eliminar el PDF del servidor', true, company);
   }
 }
 
-function resetGreetingToDefault() {
-  const el = document.getElementById('t_greeting_menu');
-  if (!el) return;
-  let base = DEFAULT_GREETING_TEXT;
-  customProgrammedCategories.forEach(cat => {
-    const header = cat.headerLine || `${cat.emoji || '📌'} *${cat.number || 4}. ${(cat.title || '').toUpperCase()}*`;
-    base += `\n\n${header}`;
-    const opts = customProgrammedOptions.filter(o => o.category === cat.id);
-    opts.forEach(o => {
-      base += `\n • ${o.title}`;
+/**
+ * Cambia la pestaña visible en Ajustes entre Agropower y Tractopower.
+ * No intercambia datos en memoria: muestra el contenedor DOM correspondiente.
+ */
+function switchSettingsCompanyTab(company) {
+  const isTracto = company === 'tractopower';
+  currentSettingsCompany = isTracto ? 'tractopower' : 'agropower';
+
+  const panelAgro = document.getElementById('settingsPanelAgro');
+  const panelTracto = document.getElementById('settingsPanelTracto');
+  const btnAgro = document.getElementById('tabBtnSettingsAgro');
+  const btnTracto = document.getElementById('tabBtnSettingsTracto');
+  const notice = document.getElementById('settingsCompanyScopeNotice');
+
+  if (isTracto) {
+    if (panelAgro) panelAgro.classList.add('hidden');
+    if (panelTracto) panelTracto.classList.remove('hidden');
+    if (btnTracto) {
+      btnTracto.className = 'px-3.5 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition bg-amber-600 text-white shadow';
+    }
+    if (btnAgro) {
+      btnAgro.className = 'px-3.5 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition bg-slate-800 text-slate-300 hover:text-white';
+    }
+    if (notice) {
+      notice.className = 'text-[11px] font-semibold text-amber-400 flex items-center gap-1.5';
+      notice.innerHTML = '<i class="fa-solid fa-circle-check text-[10px]"></i> <span>Editando respuestas, bot y catálogo de <b>Tractopower</b> (Maquinaria Pesada • +58 424-9578682)</span>';
+    }
+    checkCatalogPdfStatus('tractopower');
+  } else {
+    if (panelAgro) panelAgro.classList.remove('hidden');
+    if (panelTracto) panelTracto.classList.add('hidden');
+    if (btnAgro) {
+      btnAgro.className = 'px-3.5 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition bg-emerald-600 text-white shadow';
+    }
+    if (btnTracto) {
+      btnTracto.className = 'px-3.5 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition bg-slate-800 text-slate-300 hover:text-white';
+    }
+    if (notice) {
+      notice.className = 'text-[11px] font-semibold text-emerald-400 flex items-center gap-1.5';
+      notice.innerHTML = '<i class="fa-solid fa-circle-check text-[10px]"></i> <span>Editando respuestas, bot y catálogo de <b>Agropower</b> (Tractores Agrícolas • +58 422-8333876)</span>';
+    }
+    checkCatalogPdfStatus('agropower');
+  }
+}
+
+function resetGreetingToDefault(company = 'agropower') {
+  if (company === 'tractopower') {
+    const el = document.getElementById('t_tracto_greeting_menu');
+    if (el) el.value = DEFAULT_TRACTOPOWER_GREETING_TEXT;
+  } else {
+    const el = document.getElementById('t_agro_greeting_menu');
+    if (!el) return;
+    let base = DEFAULT_GREETING_TEXT;
+    customProgrammedCategories.forEach(cat => {
+      const header = cat.headerLine || `${cat.emoji || '📌'} *${cat.number || 4}. ${(cat.title || '').toUpperCase()}*`;
+      base += `\n\n${header}`;
+      const opts = customProgrammedOptions.filter(o => o.category === cat.id);
+      opts.forEach(o => {
+        base += `\n • ${o.title}`;
+      });
     });
-  });
-  el.value = base;
+    el.value = base;
+  }
 }
 
 function getAllCategoryNamesMap() {
@@ -183,9 +245,6 @@ function renderCategorySelectOptions(selectedValue) {
   });
 }
 
-/* =========================================================================
-   MODAL 1: AGREGAR NUEVA CATEGORÍA AL MENSAJE DE BIENVENIDA
-   ========================================================================= */
 function openAddCategoryModal() {
   const modal = document.getElementById('addCategoryModal');
   if (!modal) return;
@@ -235,28 +294,26 @@ function updateCategoryModalPreview() {
   previewEl.innerText = text;
 }
 
-async function submitAddCategoryModal(event) {
-  if (event) event.preventDefault();
+function submitAddCategoryModal(event) {
+  event.preventDefault();
   const emoji = (document.getElementById('modalCatEmoji')?.value || '🔧').trim() || '🔧';
-  const num = Number(document.getElementById('modalCatNumber')?.value) || (4 + customProgrammedCategories.length);
+  const num = parseInt(document.getElementById('modalCatNumber')?.value, 10) || (4 + customProgrammedCategories.length);
   const rawTitle = (document.getElementById('modalCatTitle')?.value || '').trim();
-  const color = document.getElementById('modalCatColor')?.value || 'emerald';
+  const color = document.getElementById('modalCatColor')?.value || 'purple';
   const firstOptTitle = (document.getElementById('modalCatFirstOptTitle')?.value || '').trim();
   const firstOptReply = (document.getElementById('modalCatFirstOptReply')?.value || '').trim();
 
-  if (!rawTitle) {
-    alert('Por favor ingresa el nombre de la nueva categoría.');
-    return;
-  }
+  if (!rawTitle) return;
 
   const cleanTitle = rawTitle.replace(/^\d+[\.\)\-\s]+/, '').trim();
-  const headerLine = `${emoji} *${num}. ${cleanTitle.toUpperCase()}*`;
-  const catId = `cat_custom_${Date.now()}`;
+  const upperTitle = cleanTitle.toUpperCase();
+  const catId = 'cat_custom_' + Date.now();
+  const headerLine = `${emoji} *${num}. ${upperTitle}*`;
 
   const newCat = {
     id: catId,
-    emoji,
     number: num,
+    emoji,
     title: cleanTitle,
     headerLine,
     color
@@ -264,90 +321,42 @@ async function submitAddCategoryModal(event) {
 
   customProgrammedCategories.push(newCat);
 
-  // Insertar el nuevo bloque de categoría en el Mensaje de Bienvenida (#t_greeting_menu)
-  const greetingEl = document.getElementById('t_greeting_menu');
-  if (greetingEl) {
-    const currentText = (greetingEl.value || DEFAULT_GREETING_TEXT).trimEnd();
-    if (!currentText.includes(headerLine)) {
-      greetingEl.value = `${currentText}\n\n${headerLine}`;
-    }
-  }
-
-  // Si el usuario también llenó la primera opción opcional dentro del modal de categoría
   if (firstOptTitle) {
-    const optId = `custom_${Date.now() + 1}`;
-    const defaultReply =
-      firstOptReply ||
-      `${emoji} *${firstOptTitle}:* Con gusto te brindamos toda la información sobre ${firstOptTitle}. Un asesor te asistirá en breve.`;
     customProgrammedOptions.push({
-      id: optId,
-      title: firstOptTitle,
+      id: 'opt_' + Date.now(),
       category: catId,
-      reply: defaultReply
+      title: firstOptTitle,
+      reply: firstOptReply || `Información de ${firstOptTitle}.`
     });
-    insertOptionIntoGreetingText(firstOptTitle, catId);
   }
 
-  renderCategorySelectOptions(catId);
-  renderCustomOptionsUI();
-  closeAddCategoryModal();
-
-  if (authenticatedUser && authenticatedUser.isAdmin) {
-    await saveTemplates('btnSaveTemplates');
-  }
-}
-
-async function removeCustomProgrammedCategory(catId) {
-  const cat = customProgrammedCategories.find(c => c.id === catId);
-  if (!cat) return;
-
-  if (
-    !confirm(
-      `¿Deseas eliminar la categoría "${cat.emoji} ${cat.number}. ${cat.title}" y sus opciones asociadas del Mensaje de Bienvenida?`
-    )
-  ) {
-    return;
-  }
-
-  const associatedOpts = customProgrammedOptions.filter(o => o.category === catId);
-  customProgrammedCategories = customProgrammedCategories.filter(c => c.id !== catId);
-  customProgrammedOptions = customProgrammedOptions.filter(o => o.category !== catId);
-
-  const greetingEl = document.getElementById('t_greeting_menu');
-  if (greetingEl && greetingEl.value) {
-    let txt = greetingEl.value;
-    associatedOpts.forEach(opt => {
-      txt = txt.replace(`\n • ${opt.title}`, '');
-    });
-    if (cat.headerLine) {
-      txt = txt.replace(`\n\n${cat.headerLine}`, '').replace(cat.headerLine, '');
+  // Insertar en textarea de Agropower
+  const elAgro = document.getElementById('t_agro_greeting_menu');
+  if (elAgro) {
+    let current = elAgro.value.trim();
+    current += `\n\n${headerLine}`;
+    if (firstOptTitle) {
+      current += `\n • ${firstOptTitle}`;
     }
-    greetingEl.value = txt.trim();
+    elAgro.value = current;
   }
 
-  renderCategorySelectOptions('cat1');
+  closeAddCategoryModal();
+  renderCustomCategoriesUI();
   renderCustomOptionsUI();
-
-  if (authenticatedUser && authenticatedUser.isAdmin) {
-    await saveTemplates('btnSaveTemplates');
-  }
+  renderCategorySelectOptions(catId);
 }
 
-/* =========================================================================
-   MODAL 2: AGREGAR NUEVA OPCIÓN AL MENSAJE DE BIENVENIDA
-   ========================================================================= */
 function openAddOptionModal(preselectedCatId) {
   const modal = document.getElementById('addOptionModal');
   if (!modal) return;
-  renderCategorySelectOptions(preselectedCatId || 'cat1');
-
-  const titleEl = document.getElementById('modalOptTitle');
-  const replyEl = document.getElementById('modalOptReply');
-  if (titleEl) titleEl.value = '';
-  if (replyEl) replyEl.value = '';
-
+  renderCategorySelectOptions(preselectedCatId);
+  const titleInput = document.getElementById('modalOptTitle');
+  const replyInput = document.getElementById('modalOptReply');
+  if (titleInput) titleInput.value = '';
+  if (replyInput) replyInput.value = '';
   modal.classList.remove('hidden');
-  setTimeout(() => titleEl?.focus(), 60);
+  setTimeout(() => titleInput?.focus(), 60);
 }
 
 function closeAddOptionModal() {
@@ -355,115 +364,103 @@ function closeAddOptionModal() {
   if (modal) modal.classList.add('hidden');
 }
 
-async function submitAddOptionModal(event) {
-  if (event) event.preventDefault();
-  const titleEl = document.getElementById('modalOptTitle');
-  const catEl = document.getElementById('modalOptCategory');
-  const replyEl = document.getElementById('modalOptReply');
+function submitAddOptionModal(event) {
+  event.preventDefault();
+  const category = document.getElementById('modalOptCategory')?.value || 'cat1';
+  const title = (document.getElementById('modalOptTitle')?.value || '').trim();
+  const reply = (document.getElementById('modalOptReply')?.value || '').trim();
 
-  const title = (titleEl?.value || '').trim();
-  const category = catEl?.value || 'cat1';
-  const reply = (replyEl?.value || '').trim();
+  if (!title || !reply) return;
 
-  if (!title || !reply) {
-    alert('Por favor ingresa el nombre de la nueva opción y el texto de respuesta rápida.');
-    return;
-  }
+  const newOpt = {
+    id: 'opt_' + Date.now(),
+    category,
+    title,
+    reply
+  };
 
-  const id = `custom_${Date.now()}`;
-  customProgrammedOptions.push({ id, title, category, reply });
+  customProgrammedOptions.push(newOpt);
   insertOptionIntoGreetingText(title, category);
-  renderCustomOptionsUI();
-  closeAddOptionModal();
 
-  if (authenticatedUser && authenticatedUser.isAdmin) {
-    await saveTemplates('btnSaveTemplates');
-  }
+  closeAddOptionModal();
+  renderCustomOptionsUI();
 }
 
 function insertOptionIntoGreetingText(title, categoryKey) {
-  const el = document.getElementById('t_greeting_menu');
+  const el = document.getElementById('t_agro_greeting_menu');
   if (!el) return;
-  const current = el.value || DEFAULT_GREETING_TEXT;
-  const bullet = ` • ${title}`;
-  if (current.includes(bullet)) return;
+  let text = el.value;
 
-  if (categoryKey === 'cat1' && current.includes('💵 *2.')) {
-    el.value = current.replace('\n\n💵 *2.', `\n${bullet}\n\n💵 *2.`);
-  } else if (categoryKey === 'cat2' && current.includes('🧑‍💼 *3.')) {
-    el.value = current.replace('\n\n🧑‍💼 *3.', `\n${bullet}\n\n🧑‍💼 *3.`);
-  } else if (categoryKey === 'cat3') {
-    // Si existen categorías personalizadas después de la 3, insertar antes de la primera categoría personalizada
-    const firstCustomCat = customProgrammedCategories[0];
-    if (firstCustomCat && firstCustomCat.headerLine && current.includes(`\n\n${firstCustomCat.headerLine}`)) {
-      el.value = current.replace(
-        `\n\n${firstCustomCat.headerLine}`,
-        `\n${bullet}\n\n${firstCustomCat.headerLine}`
-      );
-    } else {
-      el.value = `${current.trimEnd()}\n${bullet}`;
-    }
-  } else {
-    // Es una categoría personalizada (cat_custom_...)
+  const patterns = {
+    cat1: new RegExp('(📘[^\\n]*\\n)([\\s\\S]*?)(?=\\n\\s*[💵🧑‍💼📌🔧📍🚜📦🛠️📋⭐🌾]|\\n*$)', 'i'),
+    cat2: new RegExp('(💵[^\\n]*\\n)([\\s\\S]*?)(?=\\n\\s*[🧑‍💼📌🔧📍🚜📦🛠️📋⭐🌾]|\\n*$)', 'i'),
+    cat3: new RegExp('(🧑‍💼[^\\n]*\\n)([\\s\\S]*?)(?=\\n\\s*[📌🔧📍🚜📦🛠️📋⭐🌾]|\\n*$)', 'i')
+  };
+
+  let matched = false;
+  if (patterns[categoryKey] && patterns[categoryKey].test(text)) {
+    text = text.replace(patterns[categoryKey], (m, h, body) => {
+      matched = true;
+      const cleanBody = body.replace(/\s+$/, '');
+      return h + cleanBody + '\n • ' + title + '\n';
+    });
+  }
+
+  if (!matched) {
     const customCat = customProgrammedCategories.find(c => c.id === categoryKey);
-    if (customCat && customCat.headerLine && current.includes(customCat.headerLine)) {
-      const headerIdx = current.indexOf(customCat.headerLine);
-      const afterHeaderIdx = headerIdx + customCat.headerLine.length;
-      const nextDoubleNewline = current.indexOf('\n\n', afterHeaderIdx);
-      if (nextDoubleNewline !== -1) {
-        el.value =
-          current.slice(0, nextDoubleNewline) +
-          `\n${bullet}` +
-          current.slice(nextDoubleNewline);
-      } else {
-        el.value = `${current.trimEnd()}\n${bullet}`;
+    if (customCat && customCat.headerLine) {
+      const idx = text.indexOf(customCat.headerLine);
+      if (idx !== -1) {
+        const nextBreak = text.indexOf('\n\n', idx);
+        if (nextBreak !== -1) {
+          text = text.slice(0, nextBreak) + '\n • ' + title + text.slice(nextBreak);
+        } else {
+          text = text + '\n • ' + title;
+        }
+        matched = true;
       }
-    } else {
-      el.value = `${current.trimEnd()}\n${bullet}`;
     }
   }
+
+  if (!matched) {
+    text += '\n • ' + title;
+  }
+
+  el.value = text;
 }
 
-async function addCustomProgrammedOption() {
-  const titleEl = document.getElementById('newOptTitle');
-  const catEl = document.getElementById('newOptCategory');
-  const replyEl = document.getElementById('newOptReply');
+function addCustomProgrammedOption() {
+  const titleInput = document.getElementById('newOptTitle');
+  const catInput = document.getElementById('newOptCategory');
+  const replyInput = document.getElementById('newOptReply');
 
-  const title = (titleEl?.value || '').trim();
-  const category = catEl?.value || 'cat1';
-  const reply = (replyEl?.value || '').trim();
+  const title = (titleInput?.value || '').trim();
+  const category = catInput?.value || 'cat1';
+  const reply = (replyInput?.value || '').trim();
 
   if (!title || !reply) {
-    alert('Por favor ingresa el nombre de la nueva opción y el texto de respuesta rápida.');
+    alert('Ingresa el nombre de la opción y el texto de respuesta rápida.');
     return;
   }
 
-  const id = `custom_${Date.now()}`;
-  customProgrammedOptions.push({ id, title, category, reply });
+  customProgrammedOptions.push({
+    id: 'opt_' + Date.now(),
+    category,
+    title,
+    reply
+  });
+
   insertOptionIntoGreetingText(title, category);
+
+  if (titleInput) titleInput.value = '';
+  if (replyInput) replyInput.value = '';
+
   renderCustomOptionsUI();
-
-  if (titleEl) titleEl.value = '';
-  if (replyEl) replyEl.value = '';
-
-  if (authenticatedUser && authenticatedUser.isAdmin) {
-    await saveTemplates('btnSaveTemplates');
-  }
 }
 
-async function removeCustomProgrammedOption(id) {
-  const opt = customProgrammedOptions.find(o => o.id === id);
+function removeCustomProgrammedOption(id) {
   customProgrammedOptions = customProgrammedOptions.filter(o => o.id !== id);
-  if (opt) {
-    const el = document.getElementById('t_greeting_menu');
-    if (el && el.value) {
-      el.value = el.value.replace(`\n • ${opt.title}`, '');
-    }
-  }
   renderCustomOptionsUI();
-  if (authenticatedUser && authenticatedUser.isAdmin) {
-    await saveTemplates('btnSaveTemplates');
-  }
 }
 
 function updateCustomOptionReply(id, newVal) {
@@ -472,95 +469,55 @@ function updateCustomOptionReply(id, newVal) {
 }
 
 function renderCustomCategoriesUI() {
-  const catSettingsList = document.getElementById('customCategoriesSettingsList');
-  if (catSettingsList) catSettingsList.innerHTML = '';
-
-  const inboxGrid = document.getElementById('customCategoriesInboxGrid');
-  if (inboxGrid) inboxGrid.innerHTML = '';
-
-  const colorClasses = {
-    emerald: { text: 'text-emerald-400', border: 'border-emerald-800/70', badge: 'bg-emerald-950 text-emerald-300 border-emerald-700' },
-    blue: { text: 'text-blue-400', border: 'border-blue-800/70', badge: 'bg-blue-950 text-blue-300 border-blue-700' },
-    amber: { text: 'text-amber-400', border: 'border-amber-800/70', badge: 'bg-amber-950 text-amber-300 border-amber-700' },
-    purple: { text: 'text-purple-400', border: 'border-purple-800/70', badge: 'bg-purple-950 text-purple-300 border-purple-700' },
-    cyan: { text: 'text-cyan-400', border: 'border-cyan-800/70', badge: 'bg-cyan-950 text-cyan-300 border-cyan-700' },
-    rose: { text: 'text-rose-400', border: 'border-rose-800/70', badge: 'bg-rose-950 text-rose-300 border-rose-700' }
-  };
+  const container = document.getElementById('customCategoriesSettingsList');
+  if (!container) return;
+  container.innerHTML = '';
 
   customProgrammedCategories.forEach(cat => {
-    const theme = colorClasses[cat.color] || colorClasses.emerald;
-    const catOptions = customProgrammedOptions.filter(o => o.category === cat.id);
-
-    // 1. Renderizar tarjeta de Categoría en Ajustes
-    if (catSettingsList) {
-      const card = document.createElement('div');
-      card.className = `bg-slate-950 border ${theme.border} rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2`;
-      card.innerHTML = `
-        <div class="space-y-0.5">
-          <div class="text-xs font-extrabold ${theme.text} flex items-center gap-2">
-            <span>${cat.emoji || '📌'} ${cat.number}. ${cat.title}</span>
-            <span class="text-[9px] px-1.5 py-0.5 rounded border ${theme.badge} font-semibold">Categoría Personalizada (${catOptions.length} opciones)</span>
-          </div>
-          <div class="text-[10px] text-slate-400 font-mono">${cat.headerLine || ''}</div>
+    const row = document.createElement('div');
+    row.className = 'bg-slate-950 border border-purple-800/50 rounded-xl p-3 flex items-center justify-between gap-2 shadow-sm';
+    row.innerHTML = `
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="text-base shrink-0">${cat.emoji || '📌'}</span>
+        <div class="min-w-0">
+          <div class="text-xs font-extrabold text-purple-300 truncate">${cat.number}. ${cat.title}</div>
+          <div class="text-[10px] text-slate-400 font-mono truncate">${cat.headerLine}</div>
         </div>
-        <div class="flex items-center gap-2 shrink-0">
-          <button type="button" onclick="openAddOptionModal('${cat.id}')" class="bg-blue-600/25 hover:bg-blue-600/40 text-blue-300 border border-blue-500/40 px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition">
-            <i class="fa-solid fa-plus"></i> Agregar Opción aquí
-          </button>
-          <button type="button" onclick="removeCustomProgrammedCategory('${cat.id}')" class="bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition">
-            <i class="fa-solid fa-trash-can"></i> Eliminar Categoría
-          </button>
-        </div>
-      `;
-      catSettingsList.appendChild(card);
-    }
-
-    // 2. Renderizar tarjeta de Categoría en la Consola de Envío Rápido de la Bandeja de Entrada
-    if (inboxGrid) {
-      const box = document.createElement('div');
-      box.className = `bg-slate-950/90 border ${theme.border} rounded-lg p-2 space-y-1.5`;
-      box.innerHTML = `
-        <div class="text-[10px] font-bold ${theme.text} flex items-center justify-between border-b border-slate-800/80 pb-1">
-          <span>${cat.emoji || '📌'} ${cat.number}. ${cat.title}</span>
-        </div>
-        <div id="customBtns_${cat.id}" class="flex flex-wrap gap-1"></div>
-      `;
-      inboxGrid.appendChild(box);
-    }
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button type="button" onclick="openAddOptionModal('${cat.id}')" class="px-2 py-1 rounded bg-blue-950 text-blue-300 hover:bg-blue-900 border border-blue-700/60 text-[10px] font-bold transition">
+          + Opción
+        </button>
+      </div>
+    `;
+    container.appendChild(row);
   });
 }
 
 function renderCustomOptionsUI() {
-  renderCustomCategoriesUI();
-  renderCategorySelectOptions();
-
+  const settingsList = document.getElementById('customOptionsSettingsList');
   const c1 = document.getElementById('customBtnsCat1');
   const c2 = document.getElementById('customBtnsCat2');
   const c3 = document.getElementById('customBtnsCat3');
+
   if (c1) c1.innerHTML = '';
   if (c2) c2.innerHTML = '';
   if (c3) c3.innerHTML = '';
-
-  const settingsList = document.getElementById('customOptionsSettingsList');
   if (settingsList) settingsList.innerHTML = '';
 
   const catNames = getAllCategoryNamesMap();
 
   customProgrammedOptions.forEach(opt => {
     const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] transition border border-slate-700/60 flex items-center gap-1';
     btn.onclick = () => sendPreprogrammed(opt.id);
-    btn.className =
-      'bg-slate-800 hover:bg-slate-700 border border-slate-600/60 text-slate-100 px-2 py-1 rounded text-[10px] font-semibold transition';
-    btn.textContent = `✨ ${opt.title}`;
+    btn.innerHTML = `<span>✨ ${opt.title}</span>`;
 
     if (opt.category === 'cat1' && c1) c1.appendChild(btn);
     else if (opt.category === 'cat2' && c2) c2.appendChild(btn);
     else if (opt.category === 'cat3' && c3) c3.appendChild(btn);
-    else {
-      const customContainer = document.getElementById(`customBtns_${opt.category}`);
-      if (customContainer) customContainer.appendChild(btn);
-      else if (c3) c3.appendChild(btn);
-    }
+    else if (c3) c3.appendChild(btn);
 
     if (settingsList) {
       const row = document.createElement('div');
@@ -582,22 +539,86 @@ function renderCustomOptionsUI() {
   });
 }
 
+/**
+ * Carga la configuración guardada en el backend en los formularios del DOM.
+ * Desacoplado: llena independientemente Agropower y Tractopower.
+ */
 function applyConfigToUI(data) {
   if (!data) return;
-  if (data.greeting && document.getElementById('t_greeting_menu')) {
-    document.getElementById('t_greeting_menu').value = data.greeting;
-  }
+  window.botConfigData = data;
+  if (!window.botConfigData.companies) window.botConfigData.companies = {};
+
+  const agro = data.companies?.agropower || {};
+  const tracto = data.companies?.tractopower || {};
+
+  // 1. AGROPOWER
+  const agroGreeting = agro.greeting || data.greeting || (typeof DEFAULT_GREETING_TEXT !== 'undefined' ? DEFAULT_GREETING_TEXT : '');
+  if (document.getElementById('t_agro_greeting_menu')) document.getElementById('t_agro_greeting_menu').value = agroGreeting;
+  if (document.getElementById('t_greeting_menu')) document.getElementById('t_greeting_menu').value = agroGreeting;
+
+  const agroCat1 = agro.categories?.catalogo_tecnico?.items || data.categories?.catalogo_tecnico?.items || {};
+  const agroCat2 = agro.categories?.costos_financiamiento?.items || data.categories?.costos_financiamiento?.items || {};
+  const agroCat3 = agro.categories?.atencion_asesor?.items || data.categories?.atencion_asesor?.items || {};
+
+  if (document.getElementById('t_agro_cat_modelos')) document.getElementById('t_agro_cat_modelos').value = agroCat1.cat_modelos?.reply || '';
+  if (document.getElementById('t_agro_pdf_name')) document.getElementById('t_agro_pdf_name').value = agroCat1.cat_modelos?.attachment || '1792614914044_5atuoj.pdf';
+  if (document.getElementById('t_agro_repuestos')) document.getElementById('t_agro_repuestos').value = agroCat1.repuestos?.reply || '';
+  if (document.getElementById('t_agro_garantia')) document.getElementById('t_agro_garantia').value = agroCat1.garantia?.reply || '';
+
+  if (document.getElementById('t_agro_precios')) document.getElementById('t_agro_precios').value = agroCat2.precios?.reply || '';
+  if (document.getElementById('t_agro_financiamiento')) document.getElementById('t_agro_financiamiento').value = agroCat2.financiamiento?.reply || '';
+  if (document.getElementById('t_agro_compras_prog')) document.getElementById('t_agro_compras_prog').value = agroCat2.compras_prog?.reply || '';
+  if (document.getElementById('t_agro_asesor')) document.getElementById('t_agro_asesor').value = agroCat3.asesor?.reply || '';
+
+  // 2. TRACTOPOWER
+  const tractoGreeting = tracto.greeting || (typeof DEFAULT_TRACTOPOWER_GREETING_TEXT !== 'undefined' ? DEFAULT_TRACTOPOWER_GREETING_TEXT : '');
+  if (document.getElementById('t_tracto_greeting_menu')) document.getElementById('t_tracto_greeting_menu').value = tractoGreeting;
+
+  const tractoCat1 = tracto.categories?.catalogo_tecnico?.items || {};
+  const tractoCat2 = tracto.categories?.costos_financiamiento?.items || {};
+  const tractoCat3 = tracto.categories?.atencion_asesor?.items || {};
+
+  if (document.getElementById('t_tracto_cat_modelos')) document.getElementById('t_tracto_cat_modelos').value = tractoCat1.cat_modelos?.reply || '';
+  if (document.getElementById('t_tracto_pdf_name')) document.getElementById('t_tracto_pdf_name').value = tractoCat1.cat_modelos?.attachment || 'catalogo_tractopower.pdf';
+  if (document.getElementById('t_tracto_repuestos')) document.getElementById('t_tracto_repuestos').value = tractoCat1.repuestos?.reply || '';
+  if (document.getElementById('t_tracto_garantia')) document.getElementById('t_tracto_garantia').value = tractoCat1.garantia?.reply || '';
+
+  if (document.getElementById('t_tracto_precios')) document.getElementById('t_tracto_precios').value = tractoCat2.precios?.reply || '';
+  if (document.getElementById('t_tracto_financiamiento')) document.getElementById('t_tracto_financiamiento').value = tractoCat2.financiamiento?.reply || '';
+  if (document.getElementById('t_tracto_compras_prog')) document.getElementById('t_tracto_compras_prog').value = tractoCat2.compras_prog?.reply || '';
+  if (document.getElementById('t_tracto_asesor')) document.getElementById('t_tracto_asesor').value = tractoCat3.asesor?.reply || '';
+
+  // Sincronizar inputs ocultos antiguos
+  if (document.getElementById('t_cat_modelos')) document.getElementById('t_cat_modelos').value = agroCat1.cat_modelos?.reply || '';
+  if (document.getElementById('t_pdf_name')) document.getElementById('t_pdf_name').value = agroCat1.cat_modelos?.attachment || '1792614914044_5atuoj.pdf';
+  if (document.getElementById('t_repuestos')) document.getElementById('t_repuestos').value = agroCat1.repuestos?.reply || '';
+  if (document.getElementById('t_garantia')) document.getElementById('t_garantia').value = agroCat1.garantia?.reply || '';
+  if (document.getElementById('t_precios')) document.getElementById('t_precios').value = agroCat2.precios?.reply || '';
+  if (document.getElementById('t_financiamiento')) document.getElementById('t_financiamiento').value = agroCat2.financiamiento?.reply || '';
+  if (document.getElementById('t_compras_prog')) document.getElementById('t_compras_prog').value = agroCat2.compras_prog?.reply || '';
+  if (document.getElementById('t_asesor')) document.getElementById('t_asesor').value = agroCat3.asesor?.reply || '';
+
+  // Categorías y opciones personalizadas
   if (Array.isArray(data.customCategories)) {
     customProgrammedCategories = data.customCategories;
   }
   if (Array.isArray(data.customOptions)) {
     customProgrammedOptions = data.customOptions;
   }
+  renderCustomCategoriesUI();
   renderCustomOptionsUI();
+
+  // Horario y automatización
   if (data.schedule) {
-    if (data.schedule.workStart) document.getElementById('workStartInput').value = data.schedule.workStart;
-    if (data.schedule.workEnd) document.getElementById('workEndInput').value = data.schedule.workEnd;
-    if (data.schedule.mode) document.getElementById('scheduleModeInput').value = data.schedule.mode;
+    if (data.schedule.workStart && document.getElementById('workStartInput')) {
+      document.getElementById('workStartInput').value = data.schedule.workStart;
+    }
+    if (data.schedule.workEnd && document.getElementById('workEndInput')) {
+      document.getElementById('workEndInput').value = data.schedule.workEnd;
+    }
+    if (data.schedule.mode && document.getElementById('scheduleModeInput')) {
+      document.getElementById('scheduleModeInput').value = data.schedule.mode;
+    }
     if (data.schedule.autoReplySource && document.getElementById('autoReplySourceInput')) {
       document.getElementById('autoReplySourceInput').value = data.schedule.autoReplySource;
     }
@@ -605,41 +626,24 @@ function applyConfigToUI(data) {
       document.getElementById('t_welcome_message').value = data.schedule.welcomeMessage;
     }
   }
+
   if (data.testWhatsappChannel && document.getElementById('testWhatsappChannelSelect')) {
     document.getElementById('testWhatsappChannelSelect').value = data.testWhatsappChannel;
   }
-  if (data.companies) {
-    const ag = data.companies.agropower || {};
-    const tr = data.companies.tractopower || {};
-    if (ag.instagram && document.getElementById('c_agro_ig')) document.getElementById('c_agro_ig').value = ag.instagram;
-    if (ag.tiktok && document.getElementById('c_agro_tk')) document.getElementById('c_agro_tk').value = ag.tiktok;
-    if (ag.facebook && document.getElementById('c_agro_fb')) document.getElementById('c_agro_fb').value = ag.facebook;
-    if (ag.whatsapp && document.getElementById('c_agro_wa')) document.getElementById('c_agro_wa').value = ag.whatsapp;
 
-    if (tr.instagram && document.getElementById('c_tracto_ig')) document.getElementById('c_tracto_ig').value = tr.instagram;
-    if (tr.tiktok && document.getElementById('c_tracto_tk')) document.getElementById('c_tracto_tk').value = tr.tiktok;
-    if (tr.facebook && document.getElementById('c_tracto_fb')) document.getElementById('c_tracto_fb').value = tr.facebook;
-    if (tr.whatsapp && document.getElementById('c_tracto_wa')) document.getElementById('c_tracto_wa').value = tr.whatsapp;
-  }
-  if (data.categories) {
-    const cat1 = data.categories.catalogo_tecnico?.items;
-    if (cat1) {
-      if (cat1.cat_modelos?.reply) document.getElementById('t_cat_modelos').value = cat1.cat_modelos.reply;
-      if (cat1.cat_modelos?.attachment !== undefined) document.getElementById('t_pdf_name').value = cat1.cat_modelos.attachment;
-      if (cat1.repuestos?.reply) document.getElementById('t_repuestos').value = cat1.repuestos.reply;
-      if (cat1.garantia?.reply) document.getElementById('t_garantia').value = cat1.garantia.reply;
-    }
-    const cat2 = data.categories.costos_financiamiento?.items;
-    if (cat2) {
-      if (cat2.precios?.reply) document.getElementById('t_precios').value = cat2.precios.reply;
-      if (cat2.financiamiento?.reply) document.getElementById('t_financiamiento').value = cat2.financiamiento.reply;
-      if (cat2.compras_prog?.reply) document.getElementById('t_compras_prog').value = cat2.compras_prog.reply;
-    }
-    const cat3 = data.categories.atencion_asesor?.items;
-    if (cat3 && cat3.asesor?.reply) {
-      document.getElementById('t_asesor').value = cat3.asesor.reply;
-    }
-  }
+  // Redes Sociales de ambas empresas
+  if (agro.instagram && document.getElementById('c_agro_ig')) document.getElementById('c_agro_ig').value = agro.instagram;
+  if (agro.tiktok && document.getElementById('c_agro_tk')) document.getElementById('c_agro_tk').value = agro.tiktok;
+  if (agro.facebook && document.getElementById('c_agro_fb')) document.getElementById('c_agro_fb').value = agro.facebook;
+  if (agro.whatsapp && document.getElementById('c_agro_wa')) document.getElementById('c_agro_wa').value = agro.whatsapp;
+
+  if (tracto.instagram && document.getElementById('c_tracto_ig')) document.getElementById('c_tracto_ig').value = tracto.instagram;
+  if (tracto.tiktok && document.getElementById('c_tracto_tk')) document.getElementById('c_tracto_tk').value = tracto.tiktok;
+  if (tracto.facebook && document.getElementById('c_tracto_fb')) document.getElementById('c_tracto_fb').value = tracto.facebook;
+  if (tracto.whatsapp && document.getElementById('c_tracto_wa')) document.getElementById('c_tracto_wa').value = tracto.whatsapp;
+
+  checkCatalogPdfStatus('agropower');
+  checkCatalogPdfStatus('tractopower');
   previewScheduleState();
 }
 
@@ -672,193 +676,419 @@ function previewScheduleState() {
   else active = false;
 
   if (active) {
-    badge.className =
-      'px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1.5';
-    textEl.innerText =
-      mode === 'always'
-        ? '⚡ Bot Activo (Modo 24h)'
-        : `🌙 Fuera de Horario (${workStart}-${workEnd}) • Bot ACTIVO`;
+    badge.className = 'px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1.5';
+    textEl.innerText = mode === 'always'
+      ? '⚡ Bot Activo (Modo 24h)'
+      : `🌙 Fuera de Horario (${workStart}-${workEnd}) • Bot ACTIVO`;
   } else {
-    badge.className =
-      'px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-950 text-blue-300 border border-blue-800 flex items-center gap-1.5';
-    textEl.innerText =
-      mode === 'disabled'
-        ? '🛑 Bot Desactivado'
-        : `☀️ En Horario Laboral (${workStart}-${workEnd}) • Bot en Espera`;
+    badge.className = 'px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-950 text-blue-300 border border-blue-800 flex items-center gap-1.5';
+    textEl.innerText = `☀️ En Horario Laboral (${workStart}-${workEnd}) • Asesores activos`;
   }
 }
 
 async function checkWhatsAppStatus() {
   try {
-    const res = await fetch('/api/whatsapp/status');
+    const token = (typeof authToken === 'string' && authToken) ? authToken : (sessionStorage.getItem('omnipanel_token') || '');
+    const headers = {};
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const res = await fetch('/api/whatsapp/status?t=' + Date.now(), { headers });
+    if (!res.ok) return;
     const data = await res.json();
     updateWhatsAppUI(data);
-  } catch (e) {}
+  } catch (e) {
+    console.warn('[WA Status] Error:', e);
+  }
 }
 
 function updateWhatsAppUI(data) {
   if (!data) return;
 
-  const agroData = data.agro || (data.company === 'agro' ? data : (data.company === 'tracto' ? null : data));
-  const tractoData = data.tracto || (data.company === 'tracto' ? data : null);
+  const agro = data.agro || data.agropower || (data.company === 'agro' ? data : null) || {};
+  const tracto = data.tracto || data.tractopower || (data.company === 'tracto' ? data : null) || {};
 
-  // 1. ACTUALIZAR AGROPOWER (LÍNEA 1)
-  if (agroData) {
-    const qrImg = document.getElementById('qrImageElement');
-    const spinner = document.getElementById('qrLoadingSpinner');
-    const connectedState = document.getElementById('qrConnectedState');
-    const badge = document.getElementById('qrStatusBadge');
-    const headerBadge = document.getElementById('headerWaBadge');
-    const phoneLabel = document.getElementById('connectedPhoneLabel');
+  // 1. Canal Agropower (Línea Oficial 1)
+  const dotAgro = document.getElementById('topWaAgroDot');
+  const textAgro = document.getElementById('topWaAgroText');
+  const badgeAgro = document.getElementById('qrStatusBadge');
+  const imgAgro = document.getElementById('qrImageElement');
+  const spinnerAgro = document.getElementById('qrLoadingSpinner');
+  const connStateAgro = document.getElementById('qrConnectedState');
+  const phoneLabelAgro = document.getElementById('connectedPhoneLabel');
 
-    if (agroData.status === 'connected') {
-      qrImg?.classList.add('hidden');
-      spinner?.classList.add('hidden');
-      connectedState?.classList.remove('hidden');
-      if (agroData.user && phoneLabel) phoneLabel.innerText = `Número: +${agroData.user.phone}`;
-
-      if (badge) {
-        badge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1.5';
-        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> WhatsApp Conectado';
-      }
-
-      if (headerBadge) {
-        headerBadge.className = 'text-[9px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold flex items-center gap-1';
-        headerBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> WA Conectado';
-      }
-    } else if (agroData.status === 'qr_ready' && agroData.qr) {
-      connectedState?.classList.add('hidden');
-      spinner?.classList.add('hidden');
-      if (qrImg) {
-        qrImg.classList.remove('hidden');
-        qrImg.src = agroData.qr;
-      }
-
-      if (badge) {
-        badge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5';
-        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> QR Listo para Escanear';
-      }
-
-      if (headerBadge) {
-        headerBadge.className = 'text-[9px] px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800 font-semibold flex items-center gap-1';
-        headerBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Escanear QR';
-      }
-    } else {
-      qrImg?.classList.add('hidden');
-      connectedState?.classList.add('hidden');
-      spinner?.classList.remove('hidden');
-
-      if (badge) {
-        badge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1.5';
-        badge.innerHTML = 'Generando Conexión...';
-      }
+  if (agro.status === 'connected') {
+    if (dotAgro) dotAgro.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+    if (textAgro) textAgro.innerText = 'WA Agropower: Conectado';
+    if (badgeAgro) {
+      badgeAgro.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1.5';
+      const phoneStr = (agro.user && agro.user.phone) ? '(+' + agro.user.phone + ')' : '(+58 422-8333876)';
+      badgeAgro.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Conectado ' + phoneStr;
+    }
+    if (imgAgro) imgAgro.classList.add('hidden');
+    if (spinnerAgro) spinnerAgro.classList.add('hidden');
+    if (connStateAgro) {
+      connStateAgro.classList.remove('hidden');
+      connStateAgro.classList.add('flex');
+    }
+    if (phoneLabelAgro) {
+      phoneLabelAgro.innerText = (agro.user && agro.user.phone) ? '+' + agro.user.phone : '+58 422-8333876';
+    }
+  } else if (agro.qr) {
+    if (dotAgro) dotAgro.className = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
+    if (textAgro) textAgro.innerText = 'WA Agropower: Escanear QR';
+    if (badgeAgro) {
+      badgeAgro.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5';
+      badgeAgro.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> Escanear QR para conectar';
+    }
+    if (spinnerAgro) spinnerAgro.classList.add('hidden');
+    if (connStateAgro) {
+      connStateAgro.classList.add('hidden');
+      connStateAgro.classList.remove('flex');
+    }
+    if (imgAgro) {
+      imgAgro.src = agro.qr;
+      imgAgro.classList.remove('hidden');
+    }
+  } else if (agro.status === 'connecting') {
+    if (dotAgro) dotAgro.className = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
+    if (textAgro) textAgro.innerText = 'WA Agropower: Conectando...';
+    if (badgeAgro) {
+      badgeAgro.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5';
+      badgeAgro.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> Conectando...';
+    }
+    if (imgAgro) imgAgro.classList.add('hidden');
+    if (connStateAgro) {
+      connStateAgro.classList.add('hidden');
+      connStateAgro.classList.remove('flex');
+    }
+    if (spinnerAgro) spinnerAgro.classList.remove('hidden');
+  } else {
+    if (badgeAgro) {
+      badgeAgro.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1.5';
+      badgeAgro.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Desconectado';
+    }
+    if (imgAgro) imgAgro.classList.add('hidden');
+    if (spinnerAgro) spinnerAgro.classList.add('hidden');
+    if (connStateAgro) {
+      connStateAgro.classList.add('hidden');
+      connStateAgro.classList.remove('flex');
     }
   }
 
-  // 2. ACTUALIZAR TRACTOPOWER (LÍNEA 2)
-  if (tractoData) {
-    const qrImgTracto = document.getElementById('qrImageElementTracto');
-    const spinnerTracto = document.getElementById('qrLoadingSpinnerTracto');
-    const connectedStateTracto = document.getElementById('qrConnectedStateTracto');
-    const pendingTracto = document.getElementById('qrPendingStateTracto');
-    const badgeTracto = document.getElementById('qrStatusBadgeTracto');
-    const phoneLabelTracto = document.getElementById('connectedPhoneLabelTracto');
+  // 2. Canal Tractopower (Línea Oficial 2)
+  const dotTracto = document.getElementById('topWaTractoDot');
+  const textTracto = document.getElementById('topWaTractoText');
+  const badgeTracto = document.getElementById('qrStatusBadgeTracto');
+  const imgTracto = document.getElementById('qrImageElementTracto');
+  const spinnerTracto = document.getElementById('qrLoadingSpinnerTracto');
+  const pendingTracto = document.getElementById('qrPendingStateTracto');
+  const connStateTracto = document.getElementById('qrConnectedStateTracto');
+  const phoneLabelTracto = document.getElementById('connectedPhoneLabelTracto');
 
-    if (tractoData.status === 'connected') {
-      qrImgTracto?.classList.add('hidden');
-      spinnerTracto?.classList.add('hidden');
-      pendingTracto?.classList.add('hidden');
-      connectedStateTracto?.classList.remove('hidden');
-      if (tractoData.user && phoneLabelTracto) phoneLabelTracto.innerText = `Número: +${tractoData.user.phone}`;
+  if (tracto.status === 'connected') {
+    if (dotTracto) dotTracto.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+    if (textTracto) textTracto.innerText = 'WA Tractopower: Conectado';
+    if (badgeTracto) {
+      badgeTracto.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1.5';
+      const phoneStr = (tracto.user && tracto.user.phone) ? '(+' + tracto.user.phone + ')' : '(+58 424-9578682)';
+      badgeTracto.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Conectado ' + phoneStr;
+    }
+    if (imgTracto) imgTracto.classList.add('hidden');
+    if (spinnerTracto) {
+      spinnerTracto.classList.add('hidden');
+      spinnerTracto.classList.remove('flex');
+    }
+    if (pendingTracto) {
+      pendingTracto.classList.add('hidden');
+      pendingTracto.classList.remove('flex');
+    }
+    if (connStateTracto) {
+      connStateTracto.classList.remove('hidden');
+      connStateTracto.classList.add('flex');
+    }
+    if (phoneLabelTracto) {
+      phoneLabelTracto.innerText = (tracto.user && tracto.user.phone) ? '+' + tracto.user.phone : '+58 424-9578682';
+    }
+  } else if (tracto.qr) {
+    if (dotTracto) dotTracto.className = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
+    if (textTracto) textTracto.innerText = 'WA Tractopower: Escanear QR';
+    if (badgeTracto) {
+      badgeTracto.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5';
+      badgeTracto.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> Escanear QR para conectar';
+    }
+    if (spinnerTracto) {
+      spinnerTracto.classList.add('hidden');
+      spinnerTracto.classList.remove('flex');
+    }
+    if (pendingTracto) {
+      pendingTracto.classList.add('hidden');
+      pendingTracto.classList.remove('flex');
+    }
+    if (connStateTracto) {
+      connStateTracto.classList.add('hidden');
+      connStateTracto.classList.remove('flex');
+    }
+    if (imgTracto) {
+      imgTracto.src = tracto.qr;
+      imgTracto.classList.remove('hidden');
+    }
+  } else if (tracto.status === 'connecting') {
+    if (badgeTracto) {
+      badgeTracto.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5';
+      badgeTracto.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> Generando QR Tractopower...';
+    }
+    if (imgTracto) imgTracto.classList.add('hidden');
+    if (connStateTracto) {
+      connStateTracto.classList.add('hidden');
+      connStateTracto.classList.remove('flex');
+    }
+    if (pendingTracto) {
+      pendingTracto.classList.add('hidden');
+      pendingTracto.classList.remove('flex');
+    }
+    if (spinnerTracto) {
+      spinnerTracto.classList.remove('hidden');
+      spinnerTracto.classList.add('flex');
+    }
+  } else {
+    if (badgeTracto) {
+      badgeTracto.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1.5';
+      badgeTracto.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Pendiente por vincular';
+    }
+    if (imgTracto) imgTracto.classList.add('hidden');
+    if (spinnerTracto) {
+      spinnerTracto.classList.add('hidden');
+      spinnerTracto.classList.remove('flex');
+    }
+    if (connStateTracto) {
+      connStateTracto.classList.add('hidden');
+      connStateTracto.classList.remove('flex');
+    }
+    if (pendingTracto) {
+      pendingTracto.classList.remove('hidden');
+      pendingTracto.classList.add('flex');
+    }
+  }
 
-      if (badgeTracto) {
-        badgeTracto.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1.5';
-        badgeTracto.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> WhatsApp Conectado';
-      }
-    } else if (tractoData.status === 'qr_ready' && tractoData.qr) {
-      connectedStateTracto?.classList.add('hidden');
-      pendingTracto?.classList.add('hidden');
-      spinnerTracto?.classList.add('hidden');
-      if (qrImgTracto) {
-        qrImgTracto.classList.remove('hidden');
-        qrImgTracto.src = tractoData.qr;
-      }
-
-      if (badgeTracto) {
-        badgeTracto.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5';
-        badgeTracto.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> Escanear QR Tractopower';
-      }
-    } else if (tractoData.status === 'connecting') {
-      qrImgTracto?.classList.add('hidden');
-      connectedStateTracto?.classList.add('hidden');
-      pendingTracto?.classList.add('hidden');
-      spinnerTracto?.classList.remove('hidden');
-
-      if (badgeTracto) {
-        badgeTracto.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5';
-        badgeTracto.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Generando QR Tractopower...';
-      }
+  // 3. Actualizar Badge Central en Barra Superior (headerWaBadge)
+  const headerBadge = document.getElementById('headerWaBadge');
+  if (headerBadge) {
+    const isAgroConn = (agro.status === 'connected');
+    const isTractoConn = (tracto.status === 'connected');
+    if (isAgroConn && isTractoConn) {
+      headerBadge.className = 'text-[8px] sm:text-[9px] px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold flex items-center gap-1';
+      headerBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> <span class="hidden sm:inline">WA: </span>Conectado (Dual)';
+    } else if (isAgroConn) {
+      headerBadge.className = 'text-[8px] sm:text-[9px] px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold flex items-center gap-1';
+      headerBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> <span class="hidden sm:inline">WA: </span>Agropower Conectado';
+    } else if (isTractoConn) {
+      headerBadge.className = 'text-[8px] sm:text-[9px] px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold flex items-center gap-1';
+      headerBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> <span class="hidden sm:inline">WA: </span>Tractopower Conectado';
     } else {
-      // disconnected / idle
-      qrImgTracto?.classList.add('hidden');
-      spinnerTracto?.classList.add('hidden');
-      connectedStateTracto?.classList.add('hidden');
-      pendingTracto?.classList.remove('hidden');
-
-      if (badgeTracto) {
-        badgeTracto.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1.5';
-        badgeTracto.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Pendiente por vincular';
-      }
+      headerBadge.className = 'text-[8px] sm:text-[9px] px-1.5 sm:px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800 font-semibold flex items-center gap-1';
+      headerBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> <span class="hidden sm:inline">WA: </span>Desconectado';
     }
   }
 }
 
 async function restartWhatsAppConnection(company = 'agro') {
-  if (company === 'tracto') {
+  const isTracto = company === 'tracto' || company === 'tractopower';
+  const targetCompany = isTracto ? 'tracto' : 'agro';
+
+  if (isTracto) {
     const spinnerTracto = document.getElementById('qrLoadingSpinnerTracto');
     const pendingTracto = document.getElementById('qrPendingStateTracto');
     const qrImgTracto = document.getElementById('qrImageElementTracto');
     const badgeTracto = document.getElementById('qrStatusBadgeTracto');
-    if (pendingTracto) pendingTracto.classList.add('hidden');
-    if (spinnerTracto) spinnerTracto.classList.remove('hidden');
+    const connStateTracto = document.getElementById('qrConnectedStateTracto');
+    if (connStateTracto) { connStateTracto.classList.add('hidden'); connStateTracto.classList.remove('flex'); }
+    if (pendingTracto) { pendingTracto.classList.add('hidden'); pendingTracto.classList.remove('flex'); }
+    if (spinnerTracto) { spinnerTracto.classList.remove('hidden'); spinnerTracto.classList.add('flex'); }
     if (qrImgTracto) qrImgTracto.classList.add('hidden');
     if (badgeTracto) {
       badgeTracto.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5';
       badgeTracto.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> Preparando QR Tractopower...';
     }
-    try {
-      await fetch('/api/whatsapp/restart?company=tracto', { method: 'POST' });
-    } catch (e) {}
-    return;
+  } else {
+    const spinner = document.getElementById('qrLoadingSpinner');
+    const qrImg = document.getElementById('qrImageElement');
+    const connState = document.getElementById('qrConnectedState');
+    if (connState) { connState.classList.add('hidden'); connState.classList.remove('flex'); }
+    if (spinner) spinner.classList.remove('hidden');
+    if (qrImg) qrImg.classList.add('hidden');
+    const badge = document.getElementById('qrStatusBadge');
+    if (badge) {
+      badge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5';
+      badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> Preparando QR Agropower...';
+    }
   }
 
-  const spinner = document.getElementById('qrLoadingSpinner');
-  const qrImg = document.getElementById('qrImageElement');
-  if (spinner) spinner.classList.remove('hidden');
-  if (qrImg) qrImg.classList.add('hidden');
-  await fetch('/api/whatsapp/restart?company=agro', { method: 'POST' });
+  const token = (typeof authToken === 'string' && authToken) ? authToken : (sessionStorage.getItem('omnipanel_token') || '');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  if (typeof csrfToken === 'string' && csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+  try {
+    const res = await fetch('/api/whatsapp/restart?company=' + targetCompany + '&t=' + Date.now(), {
+      method: 'POST',
+      headers
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      alert(errData.error || 'Error al solicitar nuevo código QR');
+    } else {
+      setTimeout(() => checkWhatsAppStatus(), 1200);
+      setTimeout(() => checkWhatsAppStatus(), 2800);
+    }
+  } catch (e) {
+    console.error('Error restarting WA:', e);
+  }
 }
 
 async function logoutWhatsApp(company = 'agro') {
-  const compName = company === 'tracto' ? 'Tractopower' : 'Agropower';
-  if (confirm(`¿Deseas desvincular el WhatsApp de ${compName} para escanear otro número?`)) {
-    await fetch(`/api/whatsapp/logout?company=${company}`, { method: 'POST' });
+  const isTracto = company === 'tracto' || company === 'tractopower';
+  const targetCompany = isTracto ? 'tracto' : 'agro';
+  const compName = isTracto ? 'Tractopower' : 'Agropower';
+
+  if (!confirm('¿Deseas desvincular el WhatsApp de ' + compName + ' para escanear otro número?')) {
+    return;
+  }
+
+  const token = (typeof authToken === 'string' && authToken) ? authToken : (sessionStorage.getItem('omnipanel_token') || '');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  if (typeof csrfToken === 'string' && csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+  try {
+    const res = await fetch('/api/whatsapp/logout?company=' + targetCompany + '&t=' + Date.now(), {
+      method: 'POST',
+      headers
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      alert(errData.error || 'Error al desvincular WhatsApp');
+    } else {
+      await checkWhatsAppStatus();
+    }
+  } catch (e) {
+    console.error('Error logout WA:', e);
   }
 }
 
+/**
+ * Guarda simultáneamente la configuración de Agropower y Tractopower sin sobreescribirse mutuamente.
+ */
 async function saveTemplates(btnId) {
   if (!authenticatedUser || !authenticatedUser.isAdmin) {
     alert('Acceso denegado: Solo el Administrador Principal puede modificar horarios y plantillas.');
     return;
   }
+
+  // 1. Categorías Agropower (Tractores)
+  const agroCategories = {
+    catalogo_tecnico: {
+      title: 'Catálogo y Descripción Técnica',
+      items: {
+        cat_modelos: {
+          title: 'Catálogo de modelos',
+          reply: document.getElementById('t_agro_cat_modelos')?.value || '',
+          attachment: document.getElementById('t_agro_pdf_name')?.value || '1792614914044_5atuoj.pdf'
+        },
+        repuestos: {
+          title: 'Repuestos',
+          reply: document.getElementById('t_agro_repuestos')?.value || ''
+        },
+        garantia: {
+          title: 'Garantía',
+          reply: document.getElementById('t_agro_garantia')?.value || ''
+        }
+      }
+    },
+    costos_financiamiento: {
+      title: 'Costos y Financiamiento',
+      items: {
+        precios: {
+          title: 'Precio de los modelos',
+          reply: document.getElementById('t_agro_precios')?.value || ''
+        },
+        financiamiento: {
+          title: 'Sistema de financiamiento',
+          reply: document.getElementById('t_agro_financiamiento')?.value || ''
+        },
+        compras_prog: {
+          title: 'Compras programadas',
+          reply: document.getElementById('t_agro_compras_prog')?.value || ''
+        }
+      }
+    },
+    atencion_asesor: {
+      title: 'Hablar con un asesor',
+      items: {
+        asesor: {
+          title: 'Hablar con un asesor',
+          reply: document.getElementById('t_agro_asesor')?.value || '',
+          waitingAdvisor: true
+        }
+      }
+    }
+  };
+
+  // 2. Categorías Tractopower (Maquinaria Pesada)
+  const tractoCategories = {
+    catalogo_tecnico: {
+      title: 'Catálogo y Maquinaria Pesada',
+      items: {
+        cat_modelos: {
+          title: 'Catálogo de maquinaria pesada',
+          reply: document.getElementById('t_tracto_cat_modelos')?.value || '',
+          attachment: document.getElementById('t_tracto_pdf_name')?.value || 'catalogo_tractopower.pdf'
+        },
+        repuestos: {
+          title: 'Repuestos',
+          reply: document.getElementById('t_tracto_repuestos')?.value || ''
+        },
+        garantia: {
+          title: 'Garantía',
+          reply: document.getElementById('t_tracto_garantia')?.value || ''
+        }
+      }
+    },
+    costos_financiamiento: {
+      title: 'Costos y Venta al Contado',
+      items: {
+        precios: {
+          title: 'Precio de los modelos',
+          reply: document.getElementById('t_tracto_precios')?.value || ''
+        },
+        financiamiento: {
+          title: 'Condición de Venta Contado',
+          reply: document.getElementById('t_tracto_financiamiento')?.value || ''
+        },
+        compras_prog: {
+          title: 'Compras programadas',
+          reply: document.getElementById('t_tracto_compras_prog')?.value || ''
+        }
+      }
+    },
+    atencion_asesor: {
+      title: 'Hablar con un asesor',
+      items: {
+        asesor: {
+          title: 'Hablar con un asesor',
+          reply: document.getElementById('t_tracto_asesor')?.value || '',
+          waitingAdvisor: true
+        }
+      }
+    }
+  };
+
   const payload = {
-    greeting: document.getElementById('t_greeting_menu')?.value || DEFAULT_GREETING_TEXT,
+    greeting: document.getElementById('t_agro_greeting_menu')?.value || DEFAULT_GREETING_TEXT,
     customCategories: customProgrammedCategories,
     customOptions: customProgrammedOptions,
     schedule: {
-      workStart: document.getElementById('workStartInput').value || '08:00',
-      workEnd: document.getElementById('workEndInput').value || '17:00',
-      mode: document.getElementById('scheduleModeInput').value || 'outside_work_hours',
+      workStart: document.getElementById('workStartInput')?.value || '08:00',
+      workEnd: document.getElementById('workEndInput')?.value || '17:00',
+      mode: document.getElementById('scheduleModeInput')?.value || 'outside_work_hours',
       autoReplySource: document.getElementById('autoReplySourceInput')?.value || 'greeting_menu',
       welcomeMessage: document.getElementById('t_welcome_message')?.value || ''
     },
@@ -869,75 +1099,33 @@ async function saveTemplates(btnId) {
         instagram: document.getElementById('c_agro_ig')?.value || 'agropower_venezuela',
         tiktok: document.getElementById('c_agro_tk')?.value || 'agropower_venezuela',
         facebook: document.getElementById('c_agro_fb')?.value || 'Pendiente por configurar',
-        whatsapp:
-          document.getElementById('c_agro_wa')?.value ||
-          '+58 422-8333876'
+        whatsapp: document.getElementById('c_agro_wa')?.value || '+58 422-8333876',
+        greeting: document.getElementById('t_agro_greeting_menu')?.value || DEFAULT_GREETING_TEXT,
+        categories: agroCategories
       },
       tractopower: {
         name: 'Tractopower',
         instagram: document.getElementById('c_tracto_ig')?.value || 'Tractopower_venezuela',
         tiktok: document.getElementById('c_tracto_tk')?.value || 'tractopowervenezuela',
         facebook: document.getElementById('c_tracto_fb')?.value || 'Pendiente por configurar',
-        whatsapp:
-          document.getElementById('c_tracto_wa')?.value ||
-          '+58 424-9578682'
+        whatsapp: document.getElementById('c_tracto_wa')?.value || '+58 424-9578682',
+        greeting: document.getElementById('t_tracto_greeting_menu')?.value || DEFAULT_TRACTOPOWER_GREETING_TEXT,
+        categories: tractoCategories
       }
     },
-    categories: {
-      catalogo_tecnico: {
-        title: 'Catálogo y Descripción Técnica',
-        items: {
-          cat_modelos: {
-            title: 'Catálogo de modelos',
-            reply: document.getElementById('t_cat_modelos').value,
-            attachment: document.getElementById('t_pdf_name').value
-          },
-          repuestos: {
-            title: 'Repuestos',
-            reply: document.getElementById('t_repuestos').value
-          },
-          garantia: {
-            title: 'Garantía',
-            reply: document.getElementById('t_garantia').value
-          }
-        }
-      },
-      costos_financiamiento: {
-        title: 'Costos y Financiamiento',
-        items: {
-          precios: {
-            title: 'Precio de los modelos',
-            reply: document.getElementById('t_precios').value
-          },
-          financiamiento: {
-            title: 'Sistema de financiamiento',
-            reply: document.getElementById('t_financiamiento').value
-          },
-          compras_prog: {
-            title: 'Compras programadas',
-            reply: document.getElementById('t_compras_prog').value
-          }
-        }
-      },
-      atencion_asesor: {
-        title: 'Hablar con un asesor',
-        items: {
-          asesor: {
-            title: 'Hablar con un asesor',
-            reply: document.getElementById('t_asesor').value,
-            waitingAdvisor: true
-          }
-        }
-      }
-    }
+    categories: agroCategories
   };
 
   try {
-    await fetch('/api/config/templates', {
+    const res = await fetch('/api/config/templates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+    const resData = await res.json();
+    if (resData && resData.config) {
+      window.botConfigData = resData.config;
+    }
     previewScheduleState();
 
     const btn = document.getElementById(btnId || 'btnSaveTemplates');

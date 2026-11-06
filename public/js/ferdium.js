@@ -18,9 +18,9 @@ const FERDIUM_DOCK_ITEMS = [
 ];
 
 /**
- * Calcula los badges de mensajes nuevos sin leer por canal.
- * Solo muestra número cuando hay mensajes nuevos reales sin leer.
- * Si todos los mensajes ya fueron leídos, no muestra ningún número.
+ * Calcula los badges de conversaciones sin leer / sin atender por canal.
+ * Cuenta exactamente 1 por conversación no leída (no suma mensajes individuales).
+ * Si todas las conversaciones ya fueron leídas o atendidas, no muestra ningún número.
  */
 function getFerdiumChannelBadgeCounts(channelKey) {
   if (!Array.isArray(conversations)) return { unread: 0 };
@@ -29,28 +29,44 @@ function getFerdiumChannelBadgeCounts(channelKey) {
   conversations.forEach(c => {
     const ch = c.channel === 'wa1' ? 'wa_agro' : c.channel;
     if (ch === channelKey) {
-      // Si el chat está actualmente seleccionado y visible en pantalla, se considera leído
-      const isCurrentlyActive = String(c.id) === String(activeChatId);
-      if (isCurrentlyActive) {
-        c.isRead = true;
-        c.unreadCount = 0;
-        return;
-      }
-
-      // Conteo de mensajes nuevos
-      if (c.unreadCount && c.unreadCount > 0) {
-        unread += c.unreadCount;
-      } else if (!c.isRead) {
-        const lastMsg = c.messages?.[c.messages.length - 1];
-        // Solo cuenta como nuevo si el último mensaje es del cliente sin responder
-        if (c.waitingAdvisor || (lastMsg && lastMsg.sender === 'client')) {
-          unread++;
-        }
+      const isUnread = typeof isConversationUnread === 'function'
+        ? isConversationUnread(c, activeChatId)
+        : (String(c.id) !== String(activeChatId) && (c.unreadCount > 0 || c.isRead === false));
+      if (isUnread) {
+        unread++;
       }
     }
   });
 
   return { unread };
+}
+
+/**
+ * Calcula los badges totales de conversaciones sin leer por workspace (Todo, Agropower, Tractopower)
+ */
+function getFerdiumWorkspaceBadgeCounts() {
+  if (!Array.isArray(conversations)) return { all: 0, agro: 0, tracto: 0 };
+  let agro = 0;
+  let tracto = 0;
+
+  conversations.forEach(c => {
+    const isUnread = typeof isConversationUnread === 'function'
+      ? isConversationUnread(c, activeChatId)
+      : (String(c.id) !== String(activeChatId) && (c.unreadCount > 0 || c.isRead === false));
+
+    if (isUnread) {
+      const ch = c.channel === 'wa1' ? 'wa_agro' : (c.channel || '');
+      const meta = (typeof channelMeta !== 'undefined' && channelMeta[ch]) ? channelMeta[ch] : null;
+      const comp = meta?.company || c.company || '';
+      if (comp === 'agropower' || ch.includes('agro')) {
+        agro++;
+      } else if (comp === 'tractopower' || ch.includes('tracto')) {
+        tracto++;
+      }
+    }
+  });
+
+  return { all: agro + tracto, agro, tracto };
 }
 
 /**
@@ -64,11 +80,22 @@ function renderFerdiumServiceDock() {
   const isAgroWs = currentFilter === 'company_agro';
   const isTractoWs = currentFilter === 'company_tracto';
 
+  const wsBadges = getFerdiumWorkspaceBadgeCounts();
+  const allBadgeHtml = wsBadges.all > 0
+    ? `<span class="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-rose-600 text-white text-[9px] font-extrabold flex items-center justify-center shadow">${wsBadges.all}</span>`
+    : '';
+  const agroBadgeHtml = wsBadges.agro > 0
+    ? `<span class="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-rose-600 text-white text-[9px] font-extrabold flex items-center justify-center shadow">${wsBadges.agro}</span>`
+    : '';
+  const tractoBadgeHtml = wsBadges.tracto > 0
+    ? `<span class="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-rose-600 text-white text-[9px] font-extrabold flex items-center justify-center shadow">${wsBadges.tracto}</span>`
+    : '';
+
   const workspaceButtons = `
     <div class="flex flex-col items-center gap-1.5 pb-2 border-b border-slate-800 w-full px-1.5">
       <button
         onclick="filterChannel('all')"
-        class="w-9 h-8 rounded-xl flex items-center justify-center text-xs font-extrabold transition ${
+        class="relative w-9 h-8 rounded-xl flex items-center justify-center text-xs font-extrabold transition ${
           isAll
             ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
             : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800'
@@ -76,10 +103,11 @@ function renderFerdiumServiceDock() {
         title="Workspace: Todo el Consorcio (8 Canales)"
       >
         🌐
+        ${allBadgeHtml}
       </button>
       <button
         onclick="filterChannel('company_agro')"
-        class="w-9 h-8 rounded-xl flex items-center justify-center text-xs font-extrabold transition ${
+        class="relative w-9 h-8 rounded-xl flex items-center justify-center text-xs font-extrabold transition ${
           isAgroWs
             ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
             : 'bg-slate-900 text-emerald-400 hover:bg-slate-800 border border-emerald-900/60'
@@ -87,10 +115,11 @@ function renderFerdiumServiceDock() {
         title="Workspace: Agropower"
       >
         🌿
+        ${agroBadgeHtml}
       </button>
       <button
         onclick="filterChannel('company_tracto')"
-        class="w-9 h-8 rounded-xl flex items-center justify-center text-xs font-extrabold transition ${
+        class="relative w-9 h-8 rounded-xl flex items-center justify-center text-xs font-extrabold transition ${
           isTractoWs
             ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/30'
             : 'bg-slate-900 text-amber-400 hover:bg-slate-800 border border-amber-900/60'
@@ -98,6 +127,7 @@ function renderFerdiumServiceDock() {
         title="Workspace: Tractopower"
       >
         🚜
+        ${tractoBadgeHtml}
       </button>
     </div>
   `;
@@ -533,99 +563,77 @@ function isTikTokWindowOpen(channelKey) {
 }
 
 /**
- * Abre la ventana activa de TikTok para el canal filtrado o el por defecto
+ * Abre la ventana activa de TikTok para el canal activo o filtrado
  */
 function openActiveTikTokChannelWindow() {
-  const channelKey = (currentFilter === 'tk_agro' || currentFilter === 'tk_tracto') ? currentFilter : 'tk_agro';
+  const activeConv = (typeof conversations !== 'undefined' && Array.isArray(conversations))
+    ? conversations.find(c => String(c.id) === String(activeChatId))
+    : null;
+  const channelKey = (activeConv && (activeConv.channel === 'tk_agro' || activeConv.channel === 'tk_tracto'))
+    ? activeConv.channel
+    : ((currentFilter === 'tk_agro' || currentFilter === 'tk_tracto') ? currentFilter : 'tk_agro');
   openTikTokWindow(channelKey);
 }
 
 /**
- * Actualiza el Espacio de Trabajo TikTok en la bandeja cuando se filtra por TK
+ * Abre el modal de vinculación / gestión QR oficial de TikTok para el canal activo
+ */
+async function openActiveTikTokAuthModal() {
+  const activeConv = (typeof conversations !== 'undefined' && Array.isArray(conversations))
+    ? conversations.find(c => String(c.id) === String(activeChatId))
+    : null;
+  const channelKey = (activeConv && (activeConv.channel === 'tk_agro' || activeConv.channel === 'tk_tracto'))
+    ? activeConv.channel
+    : ((currentFilter === 'tk_agro' || currentFilter === 'tk_tracto') ? currentFilter : 'tk_agro');
+
+  if (!channelsVaultState && typeof loadChannelsVaultStatus === 'function') {
+    await loadChannelsVaultStatus();
+  }
+  if (typeof openChannelAuthModal === 'function') {
+    openChannelAuthModal(channelKey);
+  }
+}
+
+/**
+ * Actualiza la visibilidad y estado de los botones de TikTok en la cabecera del chat
  */
 function updateTikTokStatusBar() {
-  const pane = document.getElementById('tiktokWorkspacePane');
-  const isTkFilter = currentFilter === 'tk_agro' || currentFilter === 'tk_tracto';
+  const tkBtns = document.getElementById('activeTikTokButtons');
+  if (!tkBtns) return;
 
-  if (!pane) return;
+  const activeConv = (typeof conversations !== 'undefined' && Array.isArray(conversations))
+    ? conversations.find(c => String(c.id) === String(activeChatId))
+    : null;
 
-  if (!isTkFilter) {
-    pane.classList.add('hidden');
-    pane.classList.remove('flex');
+  const isTk = (activeConv && (activeConv.platform === 'tiktok' || activeConv.channel === 'tk_agro' || activeConv.channel === 'tk_tracto')) ||
+               (currentFilter === 'tk_agro' || currentFilter === 'tk_tracto');
+
+  if (!isTk) {
+    tkBtns.classList.add('hidden');
+    tkBtns.classList.remove('flex');
     return;
   }
 
-  pane.classList.remove('hidden');
-  pane.classList.add('flex');
+  tkBtns.classList.remove('hidden');
+  tkBtns.classList.add('flex');
 
-  const channelKey = currentFilter;
-  const ch = channelsVaultState?.channels?.[channelKey];
+  const channelKey = (activeConv && (activeConv.channel === 'tk_agro' || activeConv.channel === 'tk_tracto'))
+    ? activeConv.channel
+    : ((currentFilter === 'tk_agro' || currentFilter === 'tk_tracto') ? currentFilter : 'tk_agro');
+
   const isOpen = isTikTokWindowOpen(channelKey);
-  const isAgro = channelKey === 'tk_agro';
-  const defaultAccount = isAgro ? '@agropower_venezuela' : '@tractopowervenezuela';
-  const account = ch?.loggedAccount || ch?.defaultReferenceAccount || defaultAccount;
-  const connected = Boolean(ch?.connected);
-
-  const titleEl = document.getElementById('tkPaneTitle');
-  if (titleEl) {
-    titleEl.textContent = ch?.name || (isAgro ? 'TikTok Agropower' : 'TikTok Tractopower');
-  }
-
-  const companyBadgeEl = document.getElementById('tkPaneCompanyBadge');
-  if (companyBadgeEl) {
-    companyBadgeEl.textContent = isAgro ? '🌿 Agropower' : '🚜 Tractopower';
-    companyBadgeEl.className = isAgro
-      ? 'text-[10px] px-2 py-0.5 rounded font-extrabold bg-emerald-950 text-emerald-300 border border-emerald-700'
-      : 'text-[10px] px-2 py-0.5 rounded font-extrabold bg-amber-950 text-amber-300 border border-amber-700';
-  }
-
-  const handleEl = document.getElementById('tkPaneHandle');
-  if (handleEl) {
-    handleEl.textContent = '@' + String(account).replace(/^@/, '');
-  }
-
-  const statusBadgeEl = document.getElementById('tkPaneStatusBadge');
-  if (statusBadgeEl) {
-    if (connected) {
-      statusBadgeEl.textContent = '🟢 Conectado por QR (Método A)';
-      statusBadgeEl.className =
-        'text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-950 text-emerald-300 border border-emerald-700';
-    } else {
-      statusBadgeEl.textContent = '⚪ Sin vincular por QR';
-      statusBadgeEl.className =
-        'text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-900 text-slate-400 border border-slate-700';
-    }
-  }
-
-  const partitionEl = document.getElementById('tkPanePartition');
-  if (partitionEl) {
-    partitionEl.textContent = ch?.partition || `persist:${channelKey}`;
-  }
-
-  const dotEl = document.getElementById('tkWindowDot');
-  const alertTextEl = document.getElementById('tkWindowStateText');
   const btnTextEl = document.getElementById('btnTkOpenWindowText');
   const btnEl = document.getElementById('btnTkOpenWindow');
 
   if (isOpen) {
-    if (dotEl) dotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0';
-    if (alertTextEl) {
-      alertTextEl.innerHTML = 'Ventana aislada: <strong class="text-emerald-300">Abierta y Activa</strong>';
-    }
-    if (btnTextEl) btnTextEl.textContent = 'Enfocar Bandeja TikTok';
+    if (btnTextEl) btnTextEl.textContent = 'Enfocar TikTok';
     if (btnEl) {
-      btnEl.className =
-        'px-4 py-2.5 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition';
+      btnEl.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow shadow-emerald-600/30 flex items-center gap-1.5 transition shrink-0';
     }
   } else {
-    if (dotEl) dotEl.className = 'w-2.5 h-2.5 rounded-full bg-slate-500 shrink-0';
-    if (alertTextEl) {
-      alertTextEl.innerHTML = 'Ventana aislada: <strong class="text-slate-400">Cerrada</strong>';
-    }
     if (btnTextEl) btnTextEl.textContent = 'Abrir Bandeja TikTok';
     if (btnEl) {
-      btnEl.className =
-        'px-4 py-2.5 rounded-xl text-xs font-extrabold bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-600/30 flex items-center gap-2 transition';
+      btnEl.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white shadow shadow-cyan-600/30 flex items-center gap-1.5 transition shrink-0';
     }
   }
 }

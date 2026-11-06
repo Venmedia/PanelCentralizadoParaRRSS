@@ -6,49 +6,79 @@ function registerSocketListeners() {
   if (!socket) return;
 
   socket.on('whatsapp_status_update', data => {
-    if (authenticatedUser) updateWhatsAppUI(data);
+    if (typeof updateWhatsAppUI === 'function') updateWhatsAppUI(data);
   });
 
   socket.on('whatsapp_status_tracto', data => {
-    if (authenticatedUser) updateWhatsAppUI({ tracto: data });
+    if (typeof updateWhatsAppUI === 'function') updateWhatsAppUI({ tracto: data });
   });
 
   socket.on('whatsapp_status_agro', data => {
-    if (authenticatedUser) updateWhatsAppUI({ agro: data });
+    if (typeof updateWhatsAppUI === 'function') updateWhatsAppUI({ agro: data });
   });
 
+  let convsUpdateTimer = null;
   socket.on('conversations_updated', updated => {
     if (!authenticatedUser) return;
-    const waList = Array.isArray(updated) ? updated : [];
+    clearTimeout(convsUpdateTimer);
+    convsUpdateTimer = setTimeout(() => {
+      const waList = Array.isArray(updated) ? updated : [];
 
-    // Preservar conversaciones de otros canales (Instagram, Facebook Messenger, TikTok)
-    const otherChannelsConvs = (conversations || []).filter(c => {
-      const ch = c.channel || '';
-      return ch.startsWith('ig_') || ch.startsWith('fb_') || ch.startsWith('tk_') || String(c.id).startsWith('ig:') || String(c.id).startsWith('fb:');
-    });
+      // Preservar conversaciones de otros canales (Instagram, Facebook Messenger, TikTok)
+      const otherChannelsConvs = (conversations || []).filter(c => {
+        const ch = c.channel || '';
+        return ch.startsWith('ig_') || ch.startsWith('fb_') || ch.startsWith('tk_') || String(c.id).startsWith('ig:') || String(c.id).startsWith('fb:');
+      });
 
-    // Combinar WhatsApp actualizado con los demás canales evitando duplicados
-    const merged = [...waList];
-    otherChannelsConvs.forEach(oc => {
-      if (!merged.some(c => String(c.id) === String(oc.id))) {
-        merged.push(oc);
+      // Combinar WhatsApp actualizado con los demás canales evitando duplicados
+      const merged = [...waList];
+      otherChannelsConvs.forEach(oc => {
+        if (!merged.some(c => String(c.id) === String(oc.id))) {
+          merged.push(oc);
+        }
+      });
+
+      // Preservar el estado leído del chat actualmente abierto en pantalla
+      if (activeChatId) {
+        const activeInMerged = merged.find(c => String(c.id) === String(activeChatId));
+        if (activeInMerged) {
+          activeInMerged.isRead = true;
+          activeInMerged.unreadCount = 0;
+          activeInMerged.waitingAdvisor = false;
+        }
       }
-    });
 
-    conversations = merged;
-    if (typeof sortConversationsDesc === 'function') {
-      sortConversationsDesc(conversations);
-    }
-    renderChatList();
-    if (typeof renderFerdiumServiceDock === 'function') {
-      renderFerdiumServiceDock();
-    }
-    const active = conversations.find(c => String(c.id) === String(activeChatId));
-    if (active) {
-      renderMessages(active);
-      if (typeof updateBotHeaderUI === 'function') updateBotHeaderUI(active);
-      if (typeof updateWaitingAdvisorHeaderUI === 'function') updateWaitingAdvisorHeaderUI(active);
-      if (typeof updateSaleButtonUI === 'function') updateSaleButtonUI(active);
+      conversations = merged;
+      if (typeof sortConversationsDesc === 'function') {
+        sortConversationsDesc(conversations);
+      }
+      if (typeof renderChatList === 'function') {
+        renderChatList(false);
+      }
+      if (typeof renderFerdiumServiceDock === 'function') {
+        renderFerdiumServiceDock();
+      }
+      const active = conversations.find(c => String(c.id) === String(activeChatId));
+      if (active) {
+        renderMessages(active);
+        if (typeof updateBotHeaderUI === 'function') updateBotHeaderUI(active);
+        if (typeof updateWaitingAdvisorHeaderUI === 'function') updateWaitingAdvisorHeaderUI(active);
+        if (typeof updateSaleButtonUI === 'function') updateSaleButtonUI(active);
+      }
+    }, 120);
+  });
+
+  socket.on('conversation_read', data => {
+    if (!authenticatedUser || !data?.id) return;
+    const target = (conversations || []).find(c => String(c.id) === String(data.id));
+    if (target) {
+      target.isRead = true;
+      target.unreadCount = 0;
+      target.waitingAdvisor = false;
+      renderChatList();
+      if (typeof renderFerdiumServiceDock === 'function') {
+        renderFerdiumServiceDock();
+      }
     }
   });
 
@@ -199,6 +229,9 @@ async function syncWhatsAppChats() {
     }
 
     renderChatList();
+    if (typeof renderFerdiumServiceDock === 'function') {
+      renderFerdiumServiceDock();
+    }
 
     const active = conversations.find(c => c.id === activeChatId);
     if (active) {

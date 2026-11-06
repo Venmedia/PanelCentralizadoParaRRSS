@@ -5,7 +5,7 @@
    ========================================================================= */
 
 async function fetchHtmlFragment(url) {
-  const res = await fetch(url, { cache: 'no-store' });
+  const res = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' });
   if (!res.ok) {
     throw new Error(`Error cargando sección modular: ${url} (${res.status})`);
   }

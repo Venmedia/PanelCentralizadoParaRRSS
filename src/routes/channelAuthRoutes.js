@@ -670,6 +670,7 @@ module.exports = function createChannelAuthRoutes(io, whatsappService) {
                     updatedConv.attendedByName = operatorName;
                     updatedConv.isRead = true;
                     updatedConv.unreadCount = 0;
+                    updatedConv.waitingAdvisor = false;
                 }
 
                 // Registrar en analíticas y estadísticas del asesor

@@ -40,3 +40,16 @@ Thumbs.db
 *.bak_*
 report_summary.json
 public/exports/
+
+# Scripts temporales de pruebas y diagnóstico
+test_*.js
+inspect_*.js
+deep_sync_tiktok.js
+intercept_im_api.js
+capture_messages_api.js
+print_top_convs.js
+temp_runner.js
+partitions/
+
+# Capturas de pantalla de depuración
+public/*.png

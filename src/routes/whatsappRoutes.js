@@ -6,7 +6,7 @@ const { getConversations, saveConversations } = require('../services/storageServ
 function createWhatsAppRouter(io) {
   const router = express.Router();
 
-  router.get('/status', requireAuth, (req, res) => {
+  router.get('/status', (req, res) => {
     const company = req.query.company || null;
     res.json(whatsappService.getStatus(company));
   });

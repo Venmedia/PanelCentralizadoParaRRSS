@@ -29,7 +29,7 @@
 
 
         <div class="flex items-center gap-1.5">
-          <input id="searchInput" oninput="renderChatList()" type="text" placeholder="Buscar cliente, empresa o mensaje..." class="flex-1 bg-slate-950 border border-slate-800 rounded-md px-2.5 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-blue-500">
+          <input id="searchInput" oninput="onSearchChatInput()" type="text" placeholder="Buscar cliente, empresa o mensaje..." class="flex-1 bg-slate-950 border border-slate-800 rounded-md px-2.5 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-blue-500">
           <button id="btnSyncInstagram" onclick="syncInstagramDirectly(false)" title="Sincronizar Instagram con Meta Graph API" class="px-2 py-1 rounded bg-slate-800 text-slate-300 hover:text-white hover:bg-pink-600/80 transition text-[11px] font-semibold flex items-center gap-1 shrink-0 border border-slate-700/60">
             <i class="fa-solid fa-rotate text-[10px]" id="iconSyncMeta"></i>
             <span class="hidden sm:inline">Sincronizar</span>
@@ -37,6 +37,24 @@
           <button id="btnExportModal" onclick="openExportModal()" title="Exportación exhaustiva de conversaciones y mensajes" class="px-2 py-1 rounded bg-emerald-950/80 text-emerald-300 hover:text-white hover:bg-emerald-600 transition text-[11px] font-semibold flex items-center gap-1 shrink-0 border border-emerald-700/60">
             <i class="fa-solid fa-file-excel text-[10px]"></i>
             <span class="hidden sm:inline">Exportar</span>
+          </button>
+        </div>
+
+        <!-- Botón de Filtrado: Solo Mensajes Nuevos / Pendientes -->
+        <div>
+          <button
+            id="btnFilterUnreadOnly"
+            onclick="toggleFilterUnreadOnly()"
+            class="w-full py-1.5 px-2.5 rounded-lg text-[11px] font-bold flex items-center justify-between transition bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60 shadow-sm"
+            title="Filtrar y mostrar solo conversaciones con mensajes nuevos o no respondidos (con el indicador 1)"
+          >
+            <span class="flex items-center gap-1.5">
+              <i id="iconFilterUnread" class="fa-solid fa-envelope text-[10px] text-emerald-400"></i>
+              <span id="labelFilterUnread">Solo mensajes nuevos</span>
+            </span>
+            <span id="badgeFilterUnreadCount" class="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black border border-emerald-500/40">
+              0
+            </span>
           </button>
         </div>
       </div>
@@ -91,15 +109,28 @@
         </div>
 
         <div class="flex items-center space-x-2">
-          <!-- SELECTOR DE ASESOR (Jesus Eguis / Ricardo Cazorla / Asignar) -->
-          <div id="activeAdvisorBox" class="flex items-center gap-1.5 bg-slate-900 border border-blue-900/60 rounded-lg px-2.5 py-1 shadow-sm shrink-0">
-            <i class="fa-solid fa-user-tie text-[10px] text-blue-400"></i>
-            <span class="text-[10px] text-slate-300 font-semibold hidden md:inline">Asesor:</span>
-            <select id="activeAdvisorSelect" onchange="assignAdvisorToActiveChat(this.value)" class="bg-slate-950 text-blue-200 font-bold text-[10px] rounded px-1.5 py-0.5 border border-slate-700 focus:outline-none cursor-pointer" title="Asignar asesor a esta conversación para computar sus estadísticas">
-              <option value="">Sin Asignar</option>
-              <option value="Jesuse">Asesor Jesus</option>
-              <option value="rcazorla">Asesor Ricardo</option>
-            </select>
+          <!-- BOTONES TIKTOK EN CABECERA: ABRIR BANDEJA Y GESTIONAR / QR -->
+          <div id="activeTikTokButtons" class="hidden items-center gap-1.5">
+            <button
+              type="button"
+              id="btnTkOpenWindow"
+              onclick="openActiveTikTokChannelWindow()"
+              class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-cyan-600 hover:bg-cyan-500 text-white shadow shadow-cyan-600/30 flex items-center gap-1.5 transition shrink-0"
+              title="Abrir la bandeja web aislada de TikTok"
+            >
+              <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+              <span id="btnTkOpenWindowText" class="hidden md:inline">Abrir Bandeja TikTok</span>
+            </button>
+            <button
+              type="button"
+              id="btnTkReconnectQr"
+              onclick="openActiveTikTokAuthModal()"
+              class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 flex items-center gap-1.5 transition shrink-0"
+              title="Gestionar sesión o vincular código QR de TikTok"
+            >
+              <i class="fa-solid fa-qrcode text-cyan-400 text-[10px]"></i>
+              <span class="hidden md:inline">Gestionar / QR</span>
+            </button>
           </div>
 
           <!-- BOTÓN PARA CERRAR VENTA (Lleva la estadística del asesor y canal) -->
@@ -107,94 +138,6 @@
             <i class="fa-solid fa-trophy"></i>
             <span id="btnCloseSaleText" class="hidden sm:inline">Cerrar Venta</span>
           </button>
-        </div>
-      </div>
-
-      <!-- ESPACIO DE TRABAJO TIKTOK (MÉTODO A: VINCULACIÓN QR Y BANDEJA AISLADA) -->
-      <div id="tiktokWorkspacePane" class="hidden flex-col p-4 sm:p-6 bg-slate-950 overflow-y-auto space-y-4">
-        <!-- Tarjeta de Estado del Canal -->
-        <div class="bg-slate-900/90 border border-cyan-800/50 rounded-2xl p-5 shadow-xl space-y-4">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <div class="w-12 h-12 rounded-2xl bg-slate-950 border border-cyan-500/40 flex items-center justify-center text-cyan-400 text-2xl shrink-0 shadow-inner">
-                <i class="fa-brands fa-tiktok"></i>
-              </div>
-              <div>
-                <div class="flex items-center gap-2">
-                  <h3 id="tkPaneTitle" class="font-bold text-base text-white">TikTok Agropower</h3>
-                  <span id="tkPaneCompanyBadge" class="text-[10px] px-2 py-0.5 rounded font-extrabold bg-emerald-950 text-emerald-300 border border-emerald-700">🌿 Agropower</span>
-                </div>
-                <div class="flex items-center gap-2 mt-0.5">
-                  <span id="tkPaneHandle" class="text-xs font-mono text-cyan-300 font-bold">@agropower_venezuela</span>
-                  <span id="tkPaneStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-950 text-emerald-300 border border-emerald-700">🟢 Conectado por QR (Método A)</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Botones de Acción Rápida -->
-            <div class="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                id="btnTkOpenWindow"
-                onclick="openActiveTikTokChannelWindow()"
-                class="px-4 py-2.5 rounded-xl text-xs font-extrabold bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-600/30 flex items-center gap-2 transition"
-              >
-                <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                <span id="btnTkOpenWindowText">Abrir Bandeja TikTok</span>
-              </button>
-              <button
-                type="button"
-                id="btnTkReconnectQr"
-                onclick="openChannelAuthModal(currentFilter)"
-                class="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition"
-              >
-                <i class="fa-solid fa-qrcode text-cyan-400"></i>
-                <span>Gestionar / QR</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Estado de la Ventana Aislada -->
-          <div id="tkWindowStateAlert" class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs">
-            <div class="flex items-center gap-2">
-              <span id="tkWindowDot" class="w-2.5 h-2.5 rounded-full bg-slate-500 shrink-0"></span>
-              <span id="tkWindowStateText" class="text-slate-300">Ventana aislada: <strong>No abierta</strong></span>
-            </div>
-            <span class="text-[10px] text-slate-500 font-mono">Partición: <span id="tkPanePartition" class="text-slate-400">persist:tk_agro</span></span>
-          </div>
-        </div>
-
-        <!-- Guía de Uso del Método A -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 space-y-1.5">
-            <div class="flex items-center gap-2 text-cyan-400 text-xs font-bold">
-              <i class="fa-solid fa-headphones"></i>
-              <span>Notas de Voz Nativas</span>
-            </div>
-            <p class="text-[11px] text-slate-400 leading-relaxed">
-              Escucha las notas de voz de los clientes con total claridad directamente en la ventana web de TikTok, sin restricciones de formato.
-            </p>
-          </div>
-
-          <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 space-y-1.5">
-            <div class="flex items-center gap-2 text-emerald-400 text-xs font-bold">
-              <i class="fa-solid fa-bolt"></i>
-              <span>Sin Captchas ni Bloqueos</span>
-            </div>
-            <p class="text-[11px] text-slate-400 leading-relaxed">
-              La vinculación por QR oficial no requiere ingresar contraseñas, protegiendo las cuentas de Agropower y Tractopower contra baneos o captchas infinitos.
-            </p>
-          </div>
-
-          <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 space-y-1.5">
-            <div class="flex items-center gap-2 text-amber-400 text-xs font-bold">
-              <i class="fa-solid fa-lock"></i>
-              <span>Sesión Persistente Aislada</span>
-            </div>
-            <p class="text-[11px] text-slate-400 leading-relaxed">
-              Las cookies y la sesión se guardan en el perfil del navegador. Cada empresa opera en su propia ventana aislada sin cruce de datos.
-            </p>
-          </div>
         </div>
       </div>
 
@@ -206,11 +149,17 @@
       <!-- BOTONERA INFERIOR: LAS 3 CATEGORÍAS DE MENSAJES PROGRAMADOS -->
       <div class="border-t border-slate-800 bg-slate-900/95 p-2 sm:p-3 space-y-2 shrink-0">
         <div class="flex items-center justify-between">
-          <button id="btnToggleQuickReplies" type="button" onclick="toggleQuickReplies()" class="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 hover:text-emerald-300 cursor-pointer transition">
-            <i class="fa-solid fa-bolt"></i>
-            <span>Mensajes Rápidos</span>
-            <i id="quickRepliesChevron" class="fa-solid fa-chevron-up text-[9px] transition-transform"></i>
-          </button>
+          <div class="flex items-center gap-2">
+            <button id="btnToggleQuickReplies" type="button" onclick="toggleQuickReplies()" class="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 hover:text-emerald-300 cursor-pointer transition">
+              <i class="fa-solid fa-bolt"></i>
+              <span>Mensajes Rápidos</span>
+              <i id="quickRepliesChevron" class="fa-solid fa-chevron-up text-[9px] transition-transform"></i>
+            </button>
+            <span class="text-[9px] px-2 py-0.5 rounded font-extrabold bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1.5 shadow-sm">
+              <span>🚜 Agropower • 🏗️ Tractopower</span>
+            </span>
+          </div>
+          <span id="quickRepliesScopeHint" class="text-[9px] text-slate-500 hidden sm:inline">Respuestas adaptadas a Agropower</span>
         </div>
 
         <div id="quickRepliesBody" class="space-y-2">
@@ -219,12 +168,15 @@
             
             <!-- Cat 1 -->
             <div class="bg-slate-950/90 border border-slate-800 rounded-lg p-2 space-y-1.5">
-              <div class="text-[10px] font-bold text-blue-400 flex items-center gap-1 border-b border-slate-800/80 pb-1">
-                <i class="fa-solid fa-book-open"></i> 1. Catálogo y Desc. Técnica
+              <div id="quickCat1Title" class="text-[10px] font-bold text-blue-400 flex items-center gap-1 border-b border-slate-800/80 pb-1">
+                <i class="fa-solid fa-book-open"></i> <span>1. Catálogo y Desc. Técnica</span>
               </div>
               <div class="flex flex-wrap gap-1">
-                <button onclick="sendPreprogrammed('cat_modelos')" class="flex-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 px-2 py-1 rounded text-[10px] font-semibold flex items-center justify-center gap-1 transition">
-                  <i class="fa-solid fa-file-pdf text-rose-400"></i> Catálogo (PDF)
+                <button onclick="sendPreprogrammed('cat_agro')" class="bg-emerald-950/90 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/70 px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition" title="Enviar Catálogo PDF de Tractores Agropower">
+                  <i class="fa-solid fa-file-pdf text-rose-400"></i> <span>Catálogo Agro</span>
+                </button>
+                <button onclick="sendPreprogrammed('cat_tracto')" class="bg-amber-950/90 hover:bg-amber-900 text-amber-300 border border-amber-700/70 px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition" title="Enviar Catálogo PDF de Maquinaria Tractopower">
+                  <i class="fa-solid fa-file-pdf text-rose-400"></i> <span>Catálogo Tracto</span>
                 </button>
                 <button onclick="sendPreprogrammed('repuestos')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] transition">
                   🔧 Repuestos
@@ -238,18 +190,21 @@
 
             <!-- Cat 2 -->
             <div class="bg-slate-950/90 border border-slate-800 rounded-lg p-2 space-y-1.5">
-              <div class="text-[10px] font-bold text-amber-400 flex items-center gap-1 border-b border-slate-800/80 pb-1">
-                <i class="fa-solid fa-coins"></i> 2. Costos y Financiamiento
+              <div id="quickCat2Title" class="text-[10px] font-bold text-amber-400 flex items-center gap-1 border-b border-slate-800/80 pb-1">
+                <i class="fa-solid fa-coins"></i> <span>2. Costos y Financiamiento</span>
               </div>
               <div class="flex flex-wrap gap-1">
-                <button onclick="sendPreprogrammed('precios')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] transition">
-                  💰 Precios
+                <button onclick="sendPreprogrammed('precios_agro')" class="bg-emerald-950/90 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/70 px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition" title="Precios de Tractores Agropower">
+                  💰 <span>Precios Agro</span>
                 </button>
-                <button onclick="sendPreprogrammed('financiamiento')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] transition">
-                  💳 Financiamiento
+                <button onclick="sendPreprogrammed('precios_tracto')" class="bg-amber-950/90 hover:bg-amber-900 text-amber-300 border border-amber-700/70 px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition" title="Precios de Maquinaria Tractopower">
+                  💰 <span>Precios Tracto</span>
                 </button>
-                <button onclick="sendPreprogrammed('compras_prog')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] transition">
-                  📦 Compras Prog.
+                <button onclick="sendPreprogrammed('financiamiento')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] transition" title="Condición de Financiamiento">
+                  💳 <span>Financiamiento</span>
+                </button>
+                <button onclick="sendPreprogrammed('compras_prog')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] transition" title="Compras Programadas">
+                  📦 <span>Compras Prog.</span>
                 </button>
               </div>
               <div id="customBtnsCat2" class="flex flex-wrap gap-1 empty:hidden"></div>
@@ -261,7 +216,7 @@
                 <i class="fa-solid fa-user-tie"></i> 3. Hablar con un Asesor
               </div>
               <button onclick="sendPreprogrammed('asesor')" class="w-full bg-purple-950/80 hover:bg-purple-900 text-purple-200 border border-purple-700/60 px-2 py-1.5 rounded text-[10px] font-semibold flex items-center justify-center gap-1.5 transition">
-                <i class="fa-solid fa-headset"></i> Saludo de Asesor
+                <i class="fa-solid fa-headset"></i> <span id="quickBtnAsesorText">Saludo de Asesor</span>
               </button>
               <div id="customBtnsCat3" class="flex flex-wrap gap-1 empty:hidden"></div>
             </div>
