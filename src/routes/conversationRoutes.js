@@ -53,9 +53,7 @@ function createConversationRouter(io) {
     const combined = [...waConvs, ...metaConvs];
     for (let i = 0; i < combined.length; i++) {
       const c = combined[i];
-      if (typeof c._ts !== 'number') {
-        c._ts = parseTimestampToMs(c.time, c);
-      }
+      c._ts = parseTimestampToMs(c.time, c);
     }
     combined.sort((a, b) => (b._ts || 0) - (a._ts || 0));
 
@@ -96,6 +94,7 @@ function createConversationRouter(io) {
     conv.isRead = true;
     conv.unreadCount = 0;
     conv.time = now;
+    conv._ts = Date.now();
     conv.attendedBy = activeUser.username;
     conv.attendedByName = advisorDisplayName;
 

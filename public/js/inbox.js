@@ -8,9 +8,7 @@ async function loadInitialData() {
     conversations = await res.json();
 
     for (let i = 0; i < conversations.length; i++) {
-      if (typeof conversations[i]._ts !== 'number') {
-        conversations[i]._ts = parseTimestampToMs(conversations[i].time, conversations[i]);
-      }
+      conversations[i]._ts = parseTimestampToMs(conversations[i].time, conversations[i]);
     }
 
     sortConversationsDesc(conversations);
@@ -270,7 +268,7 @@ function sortConversationsDesc(convArray) {
   if (!Array.isArray(convArray)) return [];
   for (let i = 0; i < convArray.length; i++) {
     const c = convArray[i];
-    if (c && typeof c._ts !== 'number') {
+    if (c) {
       c._ts = parseTimestampToMs(c.time, c);
     }
   }

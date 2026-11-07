@@ -31,17 +31,19 @@ function evaluateSchedule(scheduleConfig, fullConfig, company = 'agropower') {
   const workEnd = sched.workEnd || '17:00';
   const welcomeMessage = getAutoReplyMessage(fullConfig || { schedule: sched }, company);
 
-  // SIEMPRE usar hora de Venezuela (America/Caracas = UTC-4) garantizada con Intl
+  // SIEMPRE usar hora y día de Venezuela (America/Caracas = UTC-4) garantizada con Intl
   const now = new Date();
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Caracas',
     hour: 'numeric',
     minute: 'numeric',
+    weekday: 'short',
     hour12: false
   });
   const parts = dtf.formatToParts(now);
   const vzHours = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
   const vzMinutes = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+  const vzDay = parts.find(p => p.type === 'weekday')?.value || '';
   const currentMinutes = vzHours * 60 + vzMinutes;
 
   const [startH, startM] = workStart.split(':').map(Number);
@@ -49,8 +51,15 @@ function evaluateSchedule(scheduleConfig, fullConfig, company = 'agropower') {
   const startMinutes = (!isNaN(startH) ? startH : 8) * 60 + (!isNaN(startM) ? startM : 0);
   const endMinutes = (!isNaN(endH) ? endH : 17) * 60 + (!isNaN(endM) ? endM : 0);
 
+  // Fin de semana en Venezuela (Domingo todo el día, y Sábado desde el mediodía) se considera FUERA del horario de oficina
+  const isSunday = (vzDay === 'Sun');
+  const isSaturdayAfternoon = (vzDay === 'Sat' && currentMinutes >= 12 * 60);
+  const isWeekendOutOfHours = isSunday || isSaturdayAfternoon;
+
   let isInsideWorkHours = false;
-  if (startMinutes <= endMinutes) {
+  if (isWeekendOutOfHours) {
+    isInsideWorkHours = false;
+  } else if (startMinutes <= endMinutes) {
     isInsideWorkHours = currentMinutes >= startMinutes && currentMinutes < endMinutes;
   } else {
     isInsideWorkHours = currentMinutes >= startMinutes || currentMinutes < endMinutes;

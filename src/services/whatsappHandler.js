@@ -103,6 +103,7 @@ function initWhatsAppHandler(io) {
         botActive: true,
         waitingAdvisor: false,
         time: now,
+        _ts: Date.now(),
         messages: []
       };
       conversations.unshift(conv);
@@ -174,6 +175,8 @@ function initWhatsAppHandler(io) {
       conv.botActive = false;
       conv.isRead = true;
       conv.unreadCount = 0;
+      conv.time = now;
+      conv._ts = Date.now();
 
       const isFromWeb = (deviceOrigin === 'web');
       conv.attendedBy = isFromWeb ? 'WhatsApp Web' : 'Teléfono Móvil';
@@ -207,6 +210,7 @@ function initWhatsAppHandler(io) {
     }
 
     conv.time = now;
+    conv._ts = Date.now();
     conv.isRead = false;
     conv.unreadCount = 1;
     conv.waitingAdvisor = true;
@@ -260,20 +264,24 @@ function initWhatsAppHandler(io) {
         }
 
         if (replyText) {
+          conv.time = now;
+          conv._ts = Date.now();
           conv.messages.push({
             sender: 'scheduled',
             text: replyText,
             attachment,
             time: now
           });
-          console.log(`[Bot WhatsApp - ${targetCompany}] 🤖 Respondiendo automáticamente a ${remoteJid}: "${replyText.substring(0, 60)}..."`);
-          await whatsappService.sendText(remoteJid, replyText, conv.channel || conv.company);
+          const targetJid = (conv.jid && conv.jid.endsWith('@s.whatsapp.net')) ? conv.jid : remoteJid;
+          const sendCompany = targetCompany === 'tractopower' ? 'tracto' : 'agro';
+          console.log(`[Bot WhatsApp - ${targetCompany}] 🤖 Respondiendo automáticamente a ${targetJid} (${sendCompany}): "${replyText.substring(0, 60)}..."`);
+          await whatsappService.sendText(targetJid, replyText, sendCompany);
 
           const attachFile = botResult.attachment || botResult.attachmentUrl;
           if (attachFile) {
             try {
-              console.log(`[Bot WhatsApp - ${targetCompany}] 📄 Enviando documento adjunto a ${remoteJid}: ${attachFile}`);
-              await whatsappService.sendPdf(remoteJid, attachFile, replyText, conv.channel || conv.company);
+              console.log(`[Bot WhatsApp - ${targetCompany}] 📄 Enviando documento adjunto a ${targetJid} (${sendCompany}): ${attachFile}`);
+              await whatsappService.sendPdf(targetJid, attachFile, replyText, sendCompany);
             } catch (e) {
               console.error(`[Bot WhatsApp - ${targetCompany}] ❌ Error enviando documento:`, e.message);
             }
@@ -566,6 +574,10 @@ function initWhatsAppHandler(io) {
         const lastMsg = conv.messages[conv.messages.length - 1];
         if (lastMsg && lastMsg.time) {
           conv.time = lastMsg.time;
+          try {
+            const { parseTimestampToMs } = require("./metaApiService");
+            conv._ts = parseTimestampToMs(lastMsg.time, conv);
+          } catch (e) { conv._ts = Date.now(); }
         }
       }
     }
