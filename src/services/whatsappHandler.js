@@ -477,11 +477,12 @@ function initWhatsAppHandler(io) {
           botActive: true,
           waitingAdvisor: false,
           time: formattedTime,
+          _ts: tsMs,
           isRead: !isChatUnread,
           unreadCount: isChatUnread ? 1 : 0,
           messages: []
         };
-        conversations.push(conv);
+        conversations.unshift(conv);
         changed = true;
       } else {
         if (contactName && (conv.name.startsWith('+') || conv.name === 'Contacto WhatsApp' || !conv.name)) {

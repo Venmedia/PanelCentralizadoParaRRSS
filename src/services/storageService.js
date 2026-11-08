@@ -12,6 +12,10 @@ if (!fs.existsSync(PATHS.MEDIA_DIR)) {
  */
 function resolveRealPhoneFromBaileys(jidOrPhone, fallbackPhone = '') {
   try {
+    if (jidOrPhone && typeof jidOrPhone === 'string' && jidOrPhone.endsWith('@s.whatsapp.net')) {
+      const clean = jidOrPhone.split('@')[0].split(':')[0].replace(/\D/g, '');
+      if (clean.length >= 10 && clean.length <= 15) return clean;
+    }
     const candidates = [jidOrPhone, fallbackPhone].filter(Boolean);
     const authDirs = [
       path.join(PATHS.ROOT_DIR, 'auth_info_baileys'),

@@ -63,6 +63,7 @@ function createWhatsAppRouter(io) {
     }
   });
 
+  
   return router;
 }
 

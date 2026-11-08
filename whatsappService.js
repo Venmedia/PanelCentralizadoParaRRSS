@@ -124,6 +124,13 @@ class WhatsAppService {
         }
       }
 
+      if (remoteJid && typeof remoteJid === 'string' && remoteJid.endsWith('@s.whatsapp.net')) {
+        const clean = remoteJid.split('@')[0].split(':')[0].replace(/\D/g, '');
+        if (clean.length >= 10 && clean.length <= 15) {
+          return clean;
+        }
+      }
+
       const rawId = String(remoteJid || '').split('@')[0].split(':')[0].replace(/\D/g, '');
       if (!rawId) return '';
 
@@ -220,6 +227,12 @@ class WhatsAppService {
       message.templateButtonReplyMessage?.selectedId ||
       message.interactiveResponseMessage?.body?.text ||
       message.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson ||
+      (message.contactMessage?.displayName ? `👤 Contacto: ${message.contactMessage.displayName}` : '') ||
+      (message.contactsArrayMessage ? `👥 ${message.contactsArrayMessage.contacts?.length || 0} contactos compartidos` : '') ||
+      (message.locationMessage ? `📍 Ubicación compartida (${message.locationMessage.degreesLatitude}, ${message.locationMessage.degreesLongitude})` : '') ||
+      (message.liveLocationMessage ? `📍 Ubicación en tiempo real` : '') ||
+      (message.reactionMessage?.text ? `Reaccionó con ${message.reactionMessage.text}` : '') ||
+      (message.pollCreationMessage?.name ? `📊 Encuesta: ${message.pollCreationMessage.name}` : '') ||
       ''
     );
   }
@@ -363,6 +376,26 @@ class WhatsAppService {
         printQRInTerminal: false,
         syncFullHistory: true,
         shouldSyncHistoryMessage: () => true,
+        markOnlineOnConnect: true,
+        keepAliveIntervalMs: 25000,
+        defaultQueryTimeoutMs: 60000,
+        retryRequestDelayMs: 250,
+        maxMsgRetryCount: 5,
+        getMessage: async (key) => {
+          try {
+            const { getConversations } = require('./src/services/storageService');
+            const convs = getConversations();
+            for (const c of convs) {
+              if (c.messages) {
+                const found = c.messages.find(m => m.messageId === key.id);
+                if (found) {
+                  return { conversation: found.text || '' };
+                }
+              }
+            }
+          } catch (e) {}
+          return { conversation: '' };
+        },
         browser: [`OmniPanel Consorcio (${session.companyName})`, 'Chrome', '1.0.0']
       });
 
@@ -505,7 +538,17 @@ class WhatsAppService {
               }
             }
 
-            if (!text && !mediaInfo) continue;
+            // Fallback: si aún no hay texto y tampoco media reconocido, capturar claves para no perder el mensaje
+            if (!text && !mediaInfo) {
+              const msgKeys = Object.keys(rawMessage || {}).filter(k => k !== 'messageContextInfo');
+              if (msgKeys.length > 0) {
+                text = `[Mensaje: ${msgKeys.join(', ')}]`;
+              } else {
+                continue;
+              }
+            }
+
+            console.log(`[WhatsApp ${session.companyName}] 📩 Mensaje upsert: ${remoteJid} (pushName: "${msg.pushName || ''}", fromMe: ${fromMe}): "${(text || mediaLabel || '').substring(0, 60)}"`);
 
             session.knownJids.add(remoteJid);
 
