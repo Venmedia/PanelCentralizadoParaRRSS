@@ -28,6 +28,8 @@ const createAnalyticsRouter = require('./src/routes/analyticsRoutes');
 const createChannelAuthRouter = require('./src/routes/channelAuthRoutes');
 const createMetaWebhookRouter = require('./src/routes/metaWebhookRoutes');
 const { startInstagramAutoSync } = require('./src/services/metaApiService');
+const { initializeMetaConversationPersistence } = require('./src/services/metaApiService');
+const { initializePostgres } = require('./src/db');
 const analyticsService = require('./src/services/analyticsService');
 
 // Inicializar servicio de analíticas (migración legacy, purga, directorio)
@@ -44,10 +46,23 @@ app.set('trust proxy', 1);
 // 1. Capa de Seguridad Modular (Cabeceras HTTP, CORS, Sanitización Anti-XSS/Inyección, Rate Limit)
 app.use(securityHeaders);
 app.use(compression({ threshold: 1024 }));
-app.use(cors({ origin: true, credentials: true }));
+const allowedOrigins = String(process.env.CORS_ORIGINS || 'https://powerpanel.ddns.net,http://localhost:3000')
+  .split(',').map(origin => origin.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, callback) => (!origin || allowedOrigins.includes(origin))
+    ? callback(null, true)
+    : callback(new Error('Origen no permitido por CORS')),
+  credentials: true
+}));
 app.use(express.json({ limit: '35mb', strict: true }));
 app.use(sanitizeRequest);
 app.use('/api/', apiRateLimiter);
+
+const persistenceReady = initializePostgres()
+  .then(() => initializeMetaConversationPersistence())
+  .catch(error => {
+    console.error('[Persistence] PostgreSQL no disponible:', error.message);
+  });
 
 // 2. Servir Archivos Estáticos y Vista de Login
 app.get('/login', (req, res) => {
@@ -71,7 +86,8 @@ app.use('/api/meta', createMetaWebhookRouter(io));
 
 // 5. Iniciar Servidor HTTP + WebSocket
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
+  await persistenceReady;
   const config = loadBotConfig();
   const sched = evaluateSchedule(config.schedule, config);
   console.log(`================================================================`);

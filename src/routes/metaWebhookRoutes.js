@@ -6,6 +6,9 @@
  */
 
 const express = require('express');
+const crypto = require('crypto');
+const { requireAuth } = require('../middleware/authMiddleware');
+const durableRepository = require('../services/durableRepository');
 const {
     getVerifyToken,
     processWebhookBody,
@@ -14,6 +17,7 @@ const {
     getSenderProfile,
     getOrCreateMetaConversation,
     addMessageToMetaConversation,
+    deleteMetaConversation,
     getMetaConversationsAsArray,
     syncInstagramRecentConversations
 } = require('../services/metaApiService');
@@ -48,12 +52,13 @@ module.exports = function createMetaWebhookRoutes(io) {
      * SIEMPRE retorna 200 (requisito de Meta para no reintentar)
      */
     router.post('/webhook', async (req, res) => {
-        // Meta requiere respuesta 200 inmediata
-        res.status(200).json({ status: 'EVENT_RECEIVED' });
-
         try {
             const body = req.body;
-            if (!body || !body.object) return;
+            if (!body || !body.object) return res.status(200).json({ status: 'EVENT_RECEIVED' });
+            const eventKey = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
+            const isNewEvent = await durableRepository.recordWebhookEvent(eventKey, body);
+            res.status(200).json({ status: 'EVENT_RECEIVED' });
+            if (isNewEvent === false) return;
 
             console.log(`[MetaWebhook] 📨 Evento recibido: object=${body.object}, entries=${body.entry?.length || 0}`);
 
@@ -87,11 +92,7 @@ module.exports = function createMetaWebhookRoutes(io) {
                     }
 
                     // Construir texto del mensaje
-                    let messageText = msg.text || '';
-                    if (msg.attachments && msg.attachments.length > 0) {
-                        const attachInfo = msg.attachments.map(a => `[${a.type}: ${a.payload?.url || 'archivo'}]`).join(' ');
-                        messageText = messageText ? `${messageText} ${attachInfo}` : attachInfo;
-                    }
+                    const messageText = msg.text || '';
 
                     // Agregar mensaje como enviado por el operador (móvil) con fecha y hora real de Meta
                     const msgTimestamp = msg.timestamp ? Number(msg.timestamp) : Date.now();
@@ -112,6 +113,7 @@ module.exports = function createMetaWebhookRoutes(io) {
                         timestamp: msgTimestamp,
                         platform: msg.platform,
                         messageId: msg.messageId,
+                        attachments: msg.attachments || [],
                         operatorName: '📱 Móvil / Instagram App',
                         operatorUser: 'mobile'
                     });
@@ -168,11 +170,7 @@ module.exports = function createMetaWebhookRoutes(io) {
                 );
 
                 // Construir texto del mensaje (incluir info de attachments si hay)
-                let messageText = msg.text || '';
-                if (msg.attachments && msg.attachments.length > 0) {
-                    const attachInfo = msg.attachments.map(a => `[${a.type}: ${a.payload?.url || 'archivo'}]`).join(' ');
-                    messageText = messageText ? `${messageText} ${attachInfo}` : attachInfo;
-                }
+                const messageText = msg.text || '';
 
                 // Agregar mensaje a la conversación con fecha y hora real de Meta
                 const msgTimestamp = msg.timestamp ? Number(msg.timestamp) : Date.now();
@@ -191,7 +189,8 @@ module.exports = function createMetaWebhookRoutes(io) {
                     time: msgTime,
                     timestamp: msgTimestamp,
                     platform: msg.platform,
-                    messageId: msg.messageId
+                    messageId: msg.messageId,
+                    attachments: msg.attachments || []
                 });
 
                 // Emitir al frontend vía Socket.io
@@ -258,6 +257,14 @@ module.exports = function createMetaWebhookRoutes(io) {
         } catch (e) {
             res.status(500).json({ error: e.message });
         }
+    });
+
+    router.delete('/conversations/:conversationId', requireAuth, async (req, res) => {
+        const removed = deleteMetaConversation(String(req.params.conversationId));
+        if (!removed) return res.status(404).json({ error: 'Conversación Meta no encontrada' });
+        io.emit('conversation_deleted', { conversationId: String(req.params.conversationId), deletedBy: req.authUser?.username || null });
+        io.emit('meta_conversations_updated', getMetaConversationsAsArray());
+        return res.json({ success: true, conversationId: String(req.params.conversationId) });
     });
 
     return router;

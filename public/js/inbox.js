@@ -36,7 +36,12 @@ async function deleteConversation(id, name) {
   if (!confirm(`¿Eliminar la conversación con "${name}"?\n\nEsta acción borrará la conversación tanto en el panel como en el WhatsApp del teléfono móvil.`)) return;
 
   try {
-    const res = await fetch(`/api/conversations/${id}`, { method: 'DELETE' });
+    const conv = conversations.find(c => String(c.id) === String(id));
+    const isMeta = conv && (conv.platform === 'instagram' || conv.platform === 'facebook');
+    const endpoint = isMeta
+      ? `/api/meta/conversations/${encodeURIComponent(id)}`
+      : `/api/conversations/${encodeURIComponent(id)}`;
+    const res = await fetch(endpoint, { method: 'DELETE' });
     const data = await res.json();
 
     if (res.ok && data.success) {

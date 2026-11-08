@@ -93,12 +93,14 @@ async function saveOAuthState(payload, tokenKey = 'meta') {
 
 async function recordWebhookEvent(eventKey, payload) {
   const db = getPool();
-  if (!db || !eventKey) return;
-  await db.query(`
+  if (!db || !eventKey) return null;
+  const result = await db.query(`
     INSERT INTO webhook_events (event_key, payload)
     VALUES ($1, $2::jsonb)
     ON CONFLICT (event_key) DO NOTHING
+    RETURNING event_key
   `, [eventKey, JSON.stringify(payload || {})]);
+  return result.rowCount > 0;
 }
 
 module.exports = {

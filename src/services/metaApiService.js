@@ -11,9 +11,28 @@
 
 const fs = require('fs');
 const { PATHS } = require('../config/constants');
+const { getPool, isPostgresEnabled } = require('../db');
 
 const GRAPH_API_BASE = 'https://graph.facebook.com/v22.0';
 const REDIRECT_URI = 'https://powerpanel.ddns.net/api/channels/meta/callback';
+let metaConversationCache = null;
+let metaConversationWriteChain = Promise.resolve();
+
+async function initializeMetaConversationPersistence() {
+    if (!isPostgresEnabled()) return;
+    const db = getPool();
+    const result = await db.query('SELECT payload FROM meta_conversation_state WHERE state_key = $1', ['default']);
+    if (result.rows[0]?.payload) {
+        metaConversationCache = result.rows[0].payload;
+        return;
+    }
+    metaConversationCache = loadMetaConversationsFromDisk();
+    await db.query(`
+        INSERT INTO meta_conversation_state (state_key, payload, updated_at)
+        VALUES ($1, $2::jsonb, NOW())
+        ON CONFLICT (state_key) DO NOTHING
+    `, ['default', JSON.stringify(metaConversationCache)]);
+}
 
 // ======================== UTILIDADES DE EMPRESA ========================
 
@@ -594,7 +613,7 @@ async function subscribePageToWebhooks(pageId, pageAccessToken) {
 /**
  * Carga las conversaciones de Meta (Instagram + Facebook) desde disco
  */
-function loadMetaConversations() {
+function loadMetaConversationsFromDisk() {
     try {
         if (fs.existsSync(PATHS.META_CONVERSATIONS_FILE)) {
             const data = JSON.parse(fs.readFileSync(PATHS.META_CONVERSATIONS_FILE, 'utf8'));
@@ -608,14 +627,34 @@ function loadMetaConversations() {
     return { chats: {}, deletedChats: {} };
 }
 
+function loadMetaConversations() {
+    if (metaConversationCache) return metaConversationCache;
+    metaConversationCache = loadMetaConversationsFromDisk();
+    return metaConversationCache;
+}
+
 /**
  * Guarda las conversaciones de Meta
  */
 function saveMetaConversations(data) {
+    metaConversationCache = data;
     try {
         fs.writeFileSync(PATHS.META_CONVERSATIONS_FILE, JSON.stringify(data, null, 2), 'utf8');
     } catch (e) {
         console.error('[MetaAPI] Error guardando metaConversations.json:', e.message);
+    }
+    if (isPostgresEnabled()) {
+        metaConversationWriteChain = metaConversationWriteChain
+            .then(async () => {
+                const db = getPool();
+                await db.query(`
+                    INSERT INTO meta_conversation_state (state_key, payload, updated_at)
+                    VALUES ($1, $2::jsonb, NOW())
+                    ON CONFLICT (state_key) DO UPDATE
+                    SET payload = EXCLUDED.payload, updated_at = NOW()
+                `, ['default', JSON.stringify(data)]);
+            })
+            .catch(error => console.error('[Persistence] Error guardando Meta en PostgreSQL:', error.message));
     }
 }
 
@@ -716,10 +755,21 @@ function addMessageToMetaConversation(chatId, message) {
         operatorName: message.operatorName || (message.sender === 'operator' ? 'Asesor' : undefined),
         operatorUser: message.operatorUser
     };
+    if (Array.isArray(message.attachments)) newMsg.attachments = message.attachments;
     if (message.mediaType && message.mediaUrl) {
         newMsg.mediaType = message.mediaType;
         newMsg.mediaUrl = message.mediaUrl;
         newMsg.mediaLabel = message.mediaLabel;
+    }
+    if (Array.isArray(message.attachments) && message.attachments.length > 0) {
+        newMsg.attachments = message.attachments;
+        const attachment = message.attachments[0] || {};
+        const mediaUrl = attachment.url || attachment.payload?.url || attachment.image_data?.url || attachment.video_data?.url || attachment.file_url;
+        if (mediaUrl) {
+            newMsg.mediaUrl = mediaUrl;
+            newMsg.mediaType = String(attachment.type || attachment.mime_type || 'document').split('/')[0];
+            newMsg.mediaLabel = newMsg.mediaType === 'image' ? '📷 Foto' : newMsg.mediaType === 'video' ? '🎥 Video' : '📄 Archivo';
+        }
     }
     store.chats[chatId].messages.push(newMsg);
 
@@ -1150,6 +1200,7 @@ module.exports = {
     getSenderProfile,
     // Suscripción
     subscribePageToWebhooks,
+    initializeMetaConversationPersistence,
     // Conversaciones
     loadMetaConversations,
     saveMetaConversations,
